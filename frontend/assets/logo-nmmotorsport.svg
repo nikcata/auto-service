@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 420" role="img" aria-labelledby="title desc">
+  <title id="title">nmmotorsport logo</title>
+  <desc id="desc">Minimal car service logo with car outline, gear, wrenches, and nmmotorsport text</desc>
+  <defs>
+    <style>
+      .mark { fill: #202223; }
+      .stroke { fill: none; stroke: #202223; stroke-linecap: round; stroke-linejoin: round; }
+      .text { font-family: Impact, "Arial Black", Arial, Helvetica, sans-serif; font-weight: 900; letter-spacing: 2px; }
+      .tagline { font-family: Arial, Helvetica, sans-serif; font-weight: 800; letter-spacing: 12px; }
+    </style>
+  </defs>
+
+  <g class="mark">
+    <path d="M318 168c-2-36 12-73 42-100l-18-30 28-16 20 28c16-7 33-11 51-12l7-33h33l7 33c18 2 35 7 51 14l22-26 27 19-20 29c13 12 24 26 32 42l36-2 8 31-34 10c4 17 5 34 2 52l-38 18c12-58-19-117-75-137-66-24-139 10-164 76-7 19-10 38-8 57Z"/>
+    <path d="M144 253c10-45 60-77 151-96 110-23 236-18 379 15 65 15 124 24 179 26 19 1 32 2 39 5 5 2 7 7 5 12l-25 79c-2 7-12 7-15 1-13-29-35-47-65-53-22-4-43 2-62 18-11 9-23 17-38 22-23 8-50 8-79 2-97-19-188-26-273-20-69 5-132 19-188 41-5 2-10 1-13-3-5-12-4-29 5-49Z"/>
+    <path d="M185 262c77-25 170-38 279-39 102-1 221 9 357 31-23-12-49-20-80-23-44-4-97-15-158-33-91-27-174-38-247-34-70 3-120 16-151 38-25 17-35 37-31 59 1 7 7 8 31 1Z" fill="#ffffff"/>
+    <path d="M364 177c47-34 103-52 168-54 71-3 137 15 199 54-63-8-126-10-190-7-68 3-127 13-177 30-6 2-9-18 0-23Z"/>
+    <path d="M407 180c42-20 88-31 139-33 43-2 84 4 124 17-46-2-92-1-138 2-48 4-90 10-125 19Z" fill="#ffffff"/>
+  </g>
+
+  <g class="mark">
+    <path d="M167 267c14-24 43-32 67-18 18 10 27 28 26 47l33 20v47l-38 23-35-20c-17 9-38 9-55-1-24-14-32-44-18-68l50 29 25-14v-29Z"/>
+    <path d="M833 267c-14-24-43-32-67-18-18 10-27 28-26 47l-33 20v47l38 23 35-20c17 9 38 9 55-1 24-14 32-44 18-68l-50 29-25-14v-29Z"/>
+  </g>
+
+  <text x="500" y="329" class="text" fill="#202223" text-anchor="middle" font-size="96">nmmotorsport</text>
+  <text x="500" y="377" class="tagline" fill="#202223" text-anchor="middle" font-size="28">AUTO SERVICE</text>
+</svg>
