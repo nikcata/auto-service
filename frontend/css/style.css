@@ -68,7 +68,7 @@ button {
     display: block;
     width: min(250px, 100%);
     height: auto;
-    margin: 22px auto 24px;
+    margin: 0 auto -34px;
     transform: translateX(8px);
 }
 
@@ -77,22 +77,15 @@ button {
     color: var(--muted);
 }
 
-.tabs {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 18px;
-}
-
-.tab,
 .secondary {
     background: var(--panel-2);
     color: var(--text);
     border-radius: 6px;
     padding: 10px 12px;
+    text-decoration: none;
+    display: inline-block;
 }
 
-.tab.active,
 .primary {
     background: var(--brand);
     color: #ffffff;
@@ -149,6 +142,13 @@ button {
 .main {
     padding: 24px;
     overflow: auto;
+    display: grid;
+    align-content: start;
+    justify-items: center;
+}
+
+.main > * {
+    width: min(100%, 1120px);
 }
 
 .topbar {
@@ -300,6 +300,12 @@ th {
     table-layout: fixed;
 }
 
+.appointment-table th,
+.appointment-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
 .appointment-table th:nth-child(1),
 .appointment-table td:nth-child(1) {
     width: 125px;
@@ -330,10 +336,6 @@ th {
     width: 160px;
 }
 
-.appointment-table td {
-    vertical-align: middle;
-}
-
 .invoice-table {
     table-layout: fixed;
     min-width: 880px;
@@ -347,30 +349,50 @@ th {
 
 .invoice-table th:first-child,
 .invoice-table td:first-child {
-    width: 28%;
+    width: 32%;
     text-align: left;
 }
 
 .invoice-table th:nth-child(2),
 .invoice-table td:nth-child(2) {
-    width: 18%;
+    width: 22%;
 }
 
 .invoice-table th:nth-child(3),
 .invoice-table td:nth-child(3) {
-    width: 18%;
+    width: 20%;
 }
 
 .invoice-table th:nth-child(4),
 .invoice-table td:nth-child(4) {
-    width: 14%;
+    width: 12%;
 }
 
 .invoice-table th:nth-child(5),
-.invoice-table td:nth-child(5),
-.invoice-table th:nth-child(6),
-.invoice-table td:nth-child(6) {
-    width: 11%;
+.invoice-table td:nth-child(5) {
+    width: 14%;
+}
+
+.invoice-table .actions {
+    justify-content: center;
+}
+
+.repair-table th:last-child,
+.repair-table td:last-child {
+    text-align: center;
+}
+
+.repair-table .actions {
+    justify-content: center;
+}
+
+.part-table th:last-child,
+.part-table td:last-child {
+    text-align: center;
+}
+
+.part-table .actions {
+    justify-content: center;
 }
 
 .status-select {
@@ -429,6 +451,36 @@ th {
     padding: 14px 0;
 }
 
+.parts-panel {
+    margin-top: 18px;
+}
+
+.labor-form {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+.labor-form h4 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.parts-panel h4 {
+    margin: 0 0 10px;
+    font-size: 16px;
+}
+
+.parts-total {
+    margin: 12px 0 0;
+    text-align: right;
+}
+
+.finish-repair-button {
+    margin-top: 12px;
+    width: 100%;
+}
+
 .section {
     display: grid;
     gap: 16px;
@@ -447,6 +499,7 @@ th {
 
 .customer-search {
     grid-template-columns: 1fr;
+    margin-top: 30px;
     margin-bottom: 12px;
 }
 

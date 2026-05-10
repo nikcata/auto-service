@@ -36,6 +36,7 @@ CREATE TABLE cars (
 
 CREATE TABLE repairs (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    appointment_id INT UNIQUE,
     car_id INT,
     repair_date DATE,
     mechanic_name VARCHAR(100),

@@ -3,6 +3,7 @@ const API_URL = "http://localhost:3000";
 const state = {
     view: localStorage.getItem("currentView") || "dashboard",
     incomePeriod: localStorage.getItem("incomePeriod") || "month",
+    selectedRepairId: localStorage.getItem("selectedRepairId") || "",
     user: JSON.parse(localStorage.getItem("user") || "null"),
     token: localStorage.getItem("token"),
     data: {}
@@ -35,6 +36,16 @@ function formatDate(value) {
     return new Date(value).toLocaleDateString("bg-BG");
 }
 
+function formatInputDate(value) {
+    if (!value) return "";
+    return new Date(value).toISOString().slice(0, 10);
+}
+
+function formatDateTime(value) {
+    if (!value) return "-";
+    return new Date(value).toLocaleString("bg-BG");
+}
+
 async function api(path, options = {}) {
     const headers = {
         "Content-Type": "application/json",
@@ -51,7 +62,14 @@ async function api(path, options = {}) {
     });
 
     const text = await response.text();
-    const data = text ? JSON.parse(text) : null;
+    let data = null;
+    if (text) {
+        try {
+            data = JSON.parse(text);
+        } catch (error) {
+            throw new Error("Server returned an invalid response. Restart the backend and try again.");
+        }
+    }
 
     if (!response.ok) {
         const message = data?.error || data?.message || "Request failed";
@@ -100,7 +118,7 @@ function logout(options = {}) {
 
 function render() {
     if (!state.token) {
-        renderAuth("login");
+        renderAuth();
         return;
     }
 
@@ -117,7 +135,7 @@ function isAdmin() {
     return state.user?.role === "admin";
 }
 
-function renderAuth(mode) {
+function renderAuth() {
     app.innerHTML = `
         <section class="auth-shell">
             <div class="auth-card">
@@ -192,7 +210,6 @@ function renderLayout() {
                 <div class="topbar">
                     <div>
                         <h2 data-title></h2>
-                        <p>nmmotorsport</p>
                     </div>
                 </div>
                 <p data-notice hidden></p>
@@ -456,74 +473,179 @@ function bindCarActions() {
 }
 
 async function renderRepairs(view) {
-    const [cars, repairs] = await Promise.all([api("/cars"), api("/repairs")]);
+    const [repairs, appointments] = await Promise.all([api("/repairs"), api("/appointments")]);
+    const openRepairs = repairs.filter((repair) => repair.status !== "completed");
+    const completedRepairs = repairs.filter((repair) => repair.status === "completed");
+    const repairAppointmentIds = new Set(repairs.map((repair) => String(repair.appointment_id)).filter(Boolean));
+    const selectedRepairExists = openRepairs.some((repair) => String(repair.id) === String(state.selectedRepairId));
+    const selectedRepairId = selectedRepairExists ? state.selectedRepairId : openRepairs[0]?.id || "";
+    const selectedRepair = selectedRepairId ? await api(`/repairs/${selectedRepairId}`) : null;
+    const availableAppointments = appointments.filter((appointment) => {
+        return appointment.status !== "cancelled" && !repairAppointmentIds.has(String(appointment.id));
+    });
+
     view.innerHTML = `
         <div class="section">
             <div class="card">
-                <h3>Нов ремонт</h3>
-                <form class="form" data-repair-form>
-                    <label>Автомобил<select name="car_id" required>${options(cars, "id", (c) => `${c.registration_number || "-"} - ${c.brand} ${c.model}`)}</select></label>
-                    <div class="form-row">
-                        <label>Дата<input name="repair_date" type="date" required></label>
-                        <label>Майстор<input name="mechanic_name" required></label>
-                    </div>
-                    <div class="form-row">
-                        <label>Часове труд<input name="hours_worked" type="number" step="0.25" value="1"></label>
-                        <label>Статус<select name="status"><option value="open">Отворен</option><option value="completed">Завършен</option></select></label>
-                    </div>
-                    <label>Описание<textarea name="description"></textarea></label>
-                    <button class="primary">Запази ремонт</button>
-                </form>
+                <h3>Ремонт от календар</h3>
+                ${availableAppointments.length ? `
+                    <form class="form" data-start-repair-form>
+                        <label>Записан час
+                            <select name="appointment_id" required>
+                                ${options(availableAppointments, "id", (a) => `${formatDateTime(a.appointment_date)} - ${a.registration_number || "-"} - ${a.brand} ${a.model}`)}
+                            </select>
+                        </label>
+                        <button class="primary">Започни ремонт</button>
+                    </form>
+                ` : `<p class="empty">Няма свободни записани часове от календара.</p>`}
             </div>
             <div class="card">
                 <h3>Добави част</h3>
-                <form class="form" data-part-form>
-                    <label>Ремонт<select name="repair_id" required>${options(repairs, "id", (r) => `#${r.id} - ${r.registration_number || "-"} - ${formatDate(r.repair_date)}`)}</select></label>
-                    <div class="form-row">
-                        <label>Част<input name="part_name" required></label>
-                        <label>Марка<input name="brand"></label>
+                ${openRepairs.length ? `
+                    <form class="form" data-part-form>
+                        <label>Ремонт<select name="repair_id" required>${options(openRepairs, "id", (r) => `#${r.id} - ${r.registration_number || "-"} - ${formatDate(r.repair_date)}`, selectedRepairId)}</select></label>
+                        <div class="form-row">
+                            <label>Част<input name="part_name" required></label>
+                            <label>Марка<input name="brand"></label>
+                        </div>
+                        <div class="form-row">
+                            <label>Брой<input name="quantity" type="number" value="1"></label>
+                            <label>Ед. цена<input name="unit_price" type="number" step="0.01" value="0"></label>
+                        </div>
+                        <button class="primary">Добави част</button>
+                    </form>
+                    ${repairLaborForm(selectedRepair)}
+                    <div class="parts-panel">
+                        ${selectedRepairParts(selectedRepair)}
                     </div>
-                    <div class="form-row">
-                        <label>Брой<input name="quantity" type="number" value="1"></label>
-                        <label>Ед. цена<input name="unit_price" type="number" step="0.01" value="0"></label>
-                    </div>
-                    <button class="primary">Добави част</button>
-                </form>
+                ` : `<p class="empty">Първо започни ремонт от записан час в календара.</p>`}
             </div>
             <div class="card">
-                ${table(["ID", "Клиент", "Автомобил", "Дата", "Майстор", "Сума", "Действия"], repairs.map((r) => [
-                    r.id,
-                    r.customer_name,
-                    `${r.brand} ${r.model}`,
-                    formatDate(r.repair_date),
-                    r.mechanic_name || "-",
-                    money(r.total_price),
-                    `<div class="actions">
-                        <button class="secondary small" data-repair-detail="${r.id}">Детайли</button>
-                        <button class="secondary small" data-invoice="${r.id}">PDF</button>
-                        <button class="danger small" data-delete-repair="${r.id}">Изтрий</button>
-                    </div>`
-                ]))}
+                <h3>Завършени ремонти</h3>
+                <div class="repair-table" data-completed-repairs-list>
+                    ${completedRepairTable(completedRepairs)}
+                </div>
             </div>
             <div class="card" data-repair-detail-box hidden></div>
         </div>
     `;
 
-    document.querySelector("[data-repair-form]").addEventListener("submit", submitJson("/repairs", "POST"));
-    document.querySelector("[data-part-form]").addEventListener("submit", submitJson("/repair-parts", "POST"));
+    const startRepairForm = document.querySelector("[data-start-repair-form]");
+    if (startRepairForm) {
+        startRepairForm.addEventListener("submit", startRepairFromAppointment);
+    }
+
+    const partForm = document.querySelector("[data-part-form]");
+    if (partForm) {
+        const repairSelect = partForm.querySelector("[name='repair_id']");
+        repairSelect.addEventListener("change", (event) => {
+            state.selectedRepairId = event.target.value;
+            localStorage.setItem("selectedRepairId", state.selectedRepairId);
+            loadView();
+        });
+
+        partForm.addEventListener("submit", submitRepairPart);
+    }
+    document.querySelectorAll("[data-delete-selected-part]").forEach((button) => {
+        button.addEventListener("click", () => deleteRepairPart(button.dataset.deleteSelectedPart));
+    });
+    document.querySelectorAll("[data-finish-repair]").forEach((button) => {
+        button.addEventListener("click", () => finishRepair(button.dataset.finishRepair));
+    });
+    bindCompletedRepairActions();
+}
+
+function repairLaborForm(repair) {
+    if (!repair) return "";
+
+    return `
+        <div class="form labor-form" data-labor-form data-repair-id="${escapeHtml(repair.id)}">
+            <input type="hidden" name="car_id" value="${escapeHtml(repair.car_id)}">
+            <input type="hidden" name="repair_date" value="${formatInputDate(repair.repair_date)}">
+            <input type="hidden" name="mechanic_name" value="${escapeHtml(repair.mechanic_name || "")}">
+            <input type="hidden" name="description" value="${escapeHtml(repair.description || "")}">
+            <input type="hidden" name="status" value="${escapeHtml(repair.status || "open")}">
+            <h4>Труд</h4>
+            <div class="form-row">
+                <label>Труд (часове)<input name="hours_worked" type="number" step="0.25" value="${escapeHtml(repair.hours_worked || 0)}"></label>
+                <label>Цена на час<input name="price_per_hour" type="number" step="0.01" value="${escapeHtml(repair.price_per_hour || 40)}"></label>
+            </div>
+        </div>
+    `;
+}
+
+function completedRepairTable(repairs) {
+    return table(["ID", "Клиент", "Автомобил", "Дата", "Майстор", "Сума", "Действия"], repairs.map((r) => [
+        r.id,
+        r.customer_name,
+        `${r.brand} ${r.model}`,
+        formatDate(r.repair_date),
+        r.mechanic_name || "-",
+        money(r.total_price),
+        `<div class="actions">
+            <button class="secondary small" data-repair-detail="${r.id}">Детайли</button>
+            <button class="secondary small" data-repair-edit="${r.id}">Редактирай</button>
+            <button class="secondary small" data-invoice="${r.id}">Издай фактура</button>
+            <button class="danger small" data-delete-repair="${r.id}">Изтрий</button>
+        </div>`
+    ]));
+}
+
+function bindCompletedRepairActions() {
     document.querySelectorAll("[data-invoice]").forEach((button) => button.addEventListener("click", generateInvoice));
     document.querySelectorAll("[data-repair-detail]").forEach((button) => {
         button.addEventListener("click", () => renderRepairDetails(button.dataset.repairDetail));
+    });
+    document.querySelectorAll("[data-repair-edit]").forEach((button) => {
+        button.addEventListener("click", () => renderRepairEdit(button.dataset.repairEdit));
     });
     document.querySelectorAll("[data-delete-repair]").forEach((button) => {
         button.addEventListener("click", () => deleteRecord(`/repairs/${button.dataset.deleteRepair}`, "Да изтрия ли този ремонт и всички негови части?"));
     });
 }
 
+async function refreshCompletedRepairList() {
+    const list = document.querySelector("[data-completed-repairs-list]");
+    if (!list) return;
+
+    const repairs = await api("/repairs");
+    const completedRepairs = repairs.filter((repair) => repair.status === "completed");
+    list.innerHTML = completedRepairTable(completedRepairs);
+    bindCompletedRepairActions();
+}
+
+function selectedRepairParts(repair) {
+    if (!repair) return `<p class="empty">Избери ремонт, за да видиш добавените части.</p>`;
+
+    const parts = repair.parts || [];
+    const total = parts.reduce((sum, part) => sum + Number(part.total_price || 0), 0);
+
+    if (!parts.length) {
+        return `
+            <p class="empty">Още няма добавени части към този ремонт.</p>
+            <button class="secondary" data-finish-repair="${repair.id}">Завърши ремонт</button>
+        `;
+    }
+
+    return `
+        <h4>Добавени части</h4>
+        ${table(["Част", "Марка", "Брой", "Ед. цена", "Общо", "Действия"], parts.map((part) => [
+            escapeHtml(part.part_name),
+            escapeHtml(part.brand || "-"),
+            part.quantity,
+            money(part.unit_price),
+            money(part.total_price),
+            `<button class="danger small" data-delete-selected-part="${part.id}">Изтрий</button>`
+        ]))}
+        <p class="parts-total"><strong>Общо части:</strong> ${money(total)}</p>
+        <button class="primary finish-repair-button" data-finish-repair="${repair.id}">Завърши ремонт</button>
+    `;
+}
+
 async function renderAppointments(view) {
     const [customers, cars, appointments] = await Promise.all([api("/customers"), api("/cars"), api("/appointments")]);
     view.innerHTML = `
-        <div class="grid two">
+        <div class="section">
             <div class="card">
                 <h3>Нов час</h3>
                 <form class="form" data-appointment-form>
@@ -531,7 +653,6 @@ async function renderAppointments(view) {
                     <label>Автомобил<select name="car_id" required>${options(cars, "id", (c) => `${c.registration_number || "-"} - ${c.brand} ${c.model}`)}</select></label>
                     <label>Дата и час<input name="appointment_date" type="datetime-local" required></label>
                     <label>Причина<input name="reason"></label>
-                    <label>Статус<select name="status"><option value="scheduled">Записан</option><option value="completed">Завършен</option><option value="cancelled">Отказан</option></select></label>
                     <button class="primary">Запази</button>
                 </form>
             </div>
@@ -659,43 +780,15 @@ async function updateAppointmentStatus(appointmentId, button) {
 }
 
 async function renderInvoices(view) {
-    const [repairs, invoices] = await Promise.all([api("/repairs"), api("/invoices")]);
+    const invoices = await api("/invoices");
     view.innerHTML = `
         <div class="section">
             <div class="card">
-                <form class="search-line" data-invoice-form>
-                    <select name="repair_id" required>${options(repairs, "id", (r) => `#${r.id} - ${r.registration_number || "-"} - ${money(r.total_price)}`)}</select>
-                    <button class="primary">Генерирай PDF</button>
-                </form>
-            </div>
-            <div class="card">
-                <h3>Списък</h3>
+                <h3>Издадени фактури</h3>
                 <div data-invoices-list>${invoiceTable(invoices)}</div>
             </div>
         </div>
     `;
-
-    document.querySelector("[data-invoice-form]").addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const form = event.currentTarget;
-        const button = form.querySelector("button");
-        const repairId = new FormData(form).get("repair_id");
-        const originalText = button.textContent;
-
-        button.disabled = true;
-        button.textContent = "Генериране...";
-
-        try {
-            await api(`/invoice/${repairId}`);
-            await refreshInvoiceList();
-            setNotice("Фактурата е генерирана.");
-        } catch (error) {
-            setNotice(error.message, true);
-        } finally {
-            button.disabled = false;
-            button.textContent = originalText;
-        }
-    });
 
     bindInvoiceActions();
 }
@@ -710,7 +803,6 @@ function invoiceTable(invoices) {
                         <th>Клиент</th>
                         <th>Автомобил</th>
                         <th>Сума</th>
-                        <th>Файл</th>
                         <th>Действия</th>
                     </tr>
                 </thead>
@@ -721,8 +813,12 @@ function invoiceTable(invoices) {
                             <td>${escapeHtml(i.customer_name)}</td>
                             <td>${escapeHtml(`${i.brand} ${i.model}`)}</td>
                             <td>${money(i.total_amount)}</td>
-                            <td><a href="${API_URL}/${escapeHtml(i.pdf_path)}" target="_blank">Отвори</a></td>
-                            <td><button class="danger small" data-delete-invoice="${i.id}">Изтрий</button></td>
+                            <td>
+                                <div class="actions">
+                                    <a class="secondary small" href="${API_URL}/${escapeHtml(i.pdf_path)}" target="_blank">Отвори</a>
+                                    <button class="danger small" data-delete-invoice="${i.id}">Изтрий</button>
+                                </div>
+                            </td>
                         </tr>
                     `).join("")}
                 </tbody>
@@ -857,6 +953,88 @@ function submitJson(path, method) {
     };
 }
 
+async function submitRepairPart(event) {
+    event.preventDefault();
+    const values = normalizeFormValues(Object.fromEntries(new FormData(event.currentTarget).entries()));
+
+    try {
+        await api("/repair-parts", {
+            method: "POST",
+            body: JSON.stringify(values)
+        });
+
+        state.selectedRepairId = String(values.repair_id || "");
+        localStorage.setItem("selectedRepairId", state.selectedRepairId);
+        setNotice("Частта е добавена.");
+        loadView();
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
+async function deleteRepairPart(partId) {
+    if (!confirm("Да изтрия ли тази част от ремонта?")) return;
+
+    try {
+        await api(`/repair-parts/${partId}`, { method: "DELETE" });
+        setNotice("Частта е изтрита.");
+        loadView();
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
+async function finishRepair(repairId) {
+    if (!confirm("Готов ли е ремонтът? След това ще се появи в списъка за PDF.")) return;
+
+    try {
+        const laborBox = document.querySelector(`[data-labor-form][data-repair-id="${repairId}"]`);
+        if (laborBox) {
+            const fields = laborBox.querySelectorAll("input[name]");
+            const values = normalizeFormValues(Object.fromEntries(Array.from(fields).map((field) => [field.name, field.value])));
+
+            await api(`/repairs/${repairId}`, {
+                method: "PUT",
+                body: JSON.stringify(values)
+            });
+        }
+
+        await api(`/repairs/${repairId}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({ status: "completed" })
+        });
+
+        if (String(state.selectedRepairId) === String(repairId)) {
+            state.selectedRepairId = "";
+            localStorage.removeItem("selectedRepairId");
+        }
+
+        setNotice("Ремонтът е завършен.");
+        loadView();
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
+async function startRepairFromAppointment(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const appointmentId = new FormData(form).get("appointment_id");
+
+    try {
+        const result = await api(`/appointments/${appointmentId}/start-repair`, { method: "POST" });
+        if (result?.repair_id) {
+            state.selectedRepairId = String(result.repair_id);
+            localStorage.setItem("selectedRepairId", state.selectedRepairId);
+        }
+
+        setNotice("Ремонтът е започнат от записания час.");
+        loadView();
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
 async function deleteRecord(path, message) {
     if (!confirm(message)) return;
 
@@ -883,23 +1061,177 @@ async function renderRepairDetails(repairId) {
                 <p><strong>Автомобил:</strong> ${escapeHtml(`${repair.brand} ${repair.model}`)}</p>
                 <p><strong>Рег. номер:</strong> ${escapeHtml(repair.registration_number || "-")}</p>
                 <p><strong>Майстор:</strong> ${escapeHtml(repair.mechanic_name || "-")}</p>
+                <p><strong>Труд:</strong> ${escapeHtml(repair.hours_worked || 0)} ч. x ${money(repair.price_per_hour || 0)}</p>
+                <p><strong>Сума труд:</strong> ${money(repair.labor_price || 0)}</p>
                 <p><strong>Крайна сума:</strong> ${money(repair.total_price)}</p>
             </div>
             <p>${escapeHtml(repair.description || "")}</p>
-            ${table(["ID", "Част", "Марка", "Бр.", "Ед. цена", "Общо", "Действия"], repair.parts.map((part) => [
-                part.id,
-                escapeHtml(part.part_name),
-                escapeHtml(part.brand || "-"),
-                part.quantity,
-                money(part.unit_price),
-                money(part.total_price),
-                `<button class="danger small" data-delete-part="${part.id}">Изтрий</button>`
-            ]))}
+            <div class="part-table">
+                ${table(["ID", "Част", "Марка", "Бр.", "Ед. цена", "Общо"], repair.parts.map((part) => [
+                    part.id,
+                    escapeHtml(part.part_name),
+                    escapeHtml(part.brand || "-"),
+                    part.quantity,
+                    money(part.unit_price),
+                    money(part.total_price)
+                ]))}
+            </div>
+        `;
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
+async function renderRepairEdit(repairId) {
+    const box = document.querySelector("[data-repair-detail-box]");
+    if (!box) return;
+
+    try {
+        const repair = await api(`/repairs/${repairId}`);
+        box.hidden = false;
+        box.innerHTML = `
+            <h3>Редакция на ремонт #${escapeHtml(repair.id)}</h3>
+            <form class="form" data-repair-edit-form data-repair-id="${escapeHtml(repair.id)}">
+                <input type="hidden" name="car_id" value="${escapeHtml(repair.car_id)}">
+                <input type="hidden" name="status" value="${escapeHtml(repair.status || "completed")}">
+                <div class="form-row">
+                    <label>Дата на ремонт<input name="repair_date" type="date" required value="${formatInputDate(repair.repair_date)}"></label>
+                    <label>Майстор<input name="mechanic_name" required value="${escapeHtml(repair.mechanic_name || "")}"></label>
+                </div>
+                <div class="form-row">
+                    <label>Труд (часове)<input name="hours_worked" type="number" step="0.25" value="${escapeHtml(repair.hours_worked || 0)}"></label>
+                    <label>Цена на час<input name="price_per_hour" type="number" step="0.01" value="${escapeHtml(repair.price_per_hour || 40)}"></label>
+                </div>
+                <label>Описание<textarea name="description">${escapeHtml(repair.description || "")}</textarea></label>
+                <div class="actions">
+                    <button class="primary">Запази промените</button>
+                    <button class="secondary" type="button" data-cancel-repair-edit="${repair.id}">Отказ</button>
+                </div>
+            </form>
+            <h4>Части към ремонта</h4>
+            <div class="part-table">
+                ${table(["ID", "Част", "Марка", "Бр.", "Ед. цена", "Общо", "Действия"], repair.parts.map((part) => [
+                    part.id,
+                    escapeHtml(part.part_name),
+                    escapeHtml(part.brand || "-"),
+                    part.quantity,
+                    money(part.unit_price),
+                    money(part.total_price),
+                    `<div class="actions">
+                        <button class="secondary small" data-edit-part="${part.id}">Редактирай</button>
+                        <button class="danger small" data-delete-part="${part.id}">Изтрий</button>
+                    </div>`
+                ]))}
+            </div>
         `;
 
-        document.querySelectorAll("[data-delete-part]").forEach((button) => {
-            button.addEventListener("click", () => deleteRecord(`/repair-parts/${button.dataset.deletePart}`, "Да изтрия ли тази част от ремонта?"));
+        document.querySelector("[data-repair-edit-form]").addEventListener("submit", submitRepairEdit);
+        document.querySelector("[data-cancel-repair-edit]").addEventListener("click", () => renderRepairDetails(repairId));
+        document.querySelectorAll("[data-edit-part]").forEach((button) => {
+            button.addEventListener("click", () => renderPartEdit(repairId, button.dataset.editPart));
         });
+
+        document.querySelectorAll("[data-delete-part]").forEach((button) => {
+            button.addEventListener("click", () => deletePartFromEdit(button.dataset.deletePart, repairId));
+        });
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
+async function submitRepairEdit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const repairId = form.dataset.repairId;
+    const values = normalizeFormValues(Object.fromEntries(new FormData(form).entries()));
+
+    if (!repairId) {
+        setNotice("Не може да се намери ремонтът за редакция.", true);
+        return;
+    }
+
+    try {
+        await api(`/repairs/${repairId}`, {
+            method: "PUT",
+            body: JSON.stringify(values)
+        });
+
+        setNotice("Ремонтът е обновен.");
+        await refreshCompletedRepairList();
+        renderRepairEdit(repairId);
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
+async function renderPartEdit(repairId, partId) {
+    const box = document.querySelector("[data-repair-detail-box]");
+    if (!box) return;
+
+    try {
+        const repair = await api(`/repairs/${repairId}`);
+        const part = (repair.parts || []).find((item) => String(item.id) === String(partId));
+
+        if (!part) {
+            setNotice("Частта не е намерена.", true);
+            return;
+        }
+
+        box.hidden = false;
+        box.innerHTML = `
+            <h3>Редакция на част #${escapeHtml(part.id)}</h3>
+            <form class="form" data-part-edit-form data-repair-id="${escapeHtml(repairId)}" data-part-id="${escapeHtml(part.id)}">
+                <div class="form-row">
+                    <label>Част<input name="part_name" required value="${escapeHtml(part.part_name)}"></label>
+                    <label>Марка<input name="brand" value="${escapeHtml(part.brand || "")}"></label>
+                </div>
+                <div class="form-row">
+                    <label>Брой<input name="quantity" type="number" value="${escapeHtml(part.quantity || 1)}"></label>
+                    <label>Ед. цена<input name="unit_price" type="number" step="0.01" value="${escapeHtml(part.unit_price || 0)}"></label>
+                </div>
+                <div class="actions">
+                    <button class="primary">Запази част</button>
+                    <button class="secondary" type="button" data-cancel-part-edit="${escapeHtml(repairId)}">Отказ</button>
+                </div>
+            </form>
+        `;
+
+        document.querySelector("[data-part-edit-form]").addEventListener("submit", submitPartEdit);
+        document.querySelector("[data-cancel-part-edit]").addEventListener("click", () => renderRepairEdit(repairId));
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
+async function submitPartEdit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const repairId = form.dataset.repairId;
+    const partId = form.dataset.partId;
+    const values = Object.fromEntries(new FormData(form).entries());
+
+    try {
+        await api(`/repair-parts/${partId}`, {
+            method: "PUT",
+            body: JSON.stringify(values)
+        });
+
+        setNotice("Частта е обновена.");
+        await refreshCompletedRepairList();
+        renderRepairEdit(repairId);
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
+async function deletePartFromEdit(partId, repairId) {
+    if (!confirm("Да изтрия ли тази част от ремонта?")) return;
+
+    try {
+        await api(`/repair-parts/${partId}`, { method: "DELETE" });
+        setNotice("Частта е изтрита.");
+        await refreshCompletedRepairList();
+        renderRepairEdit(repairId);
     } catch (error) {
         setNotice(error.message, true);
     }
@@ -917,10 +1249,13 @@ async function generateInvoice(event) {
     }
 }
 
-function options(items, valueKey, labelKey) {
+function options(items, valueKey, labelKey, selectedValue = "") {
     return items.map((item) => {
         const label = typeof labelKey === "function" ? labelKey(item) : item[labelKey];
-        return `<option value="${escapeHtml(item[valueKey])}">${escapeHtml(label)}</option>`;
+        const value = item[valueKey];
+        const selected = String(value) === String(selectedValue) ? " selected" : "";
+
+        return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
     }).join("");
 }
 
