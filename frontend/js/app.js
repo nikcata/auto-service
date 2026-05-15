@@ -651,7 +651,10 @@ async function renderAppointments(view) {
                 <form class="form" data-appointment-form>
                     <label>Клиент<select name="customer_id" required>${options(customers, "id", "full_name")}</select></label>
                     <label>Автомобил<select name="car_id" required>${options(cars, "id", (c) => `${c.registration_number || "-"} - ${c.brand} ${c.model}`)}</select></label>
-                    <label>Дата и час<input name="appointment_date" type="datetime-local" required></label>
+                    <div class="form-row">
+                        <label>Дата<input name="appointment_date_day" type="date" required></label>
+                        <label>Час<input name="appointment_date_time" type="time" required></label>
+                    </div>
                     <label>Причина<input name="reason"></label>
                     <button class="primary">Запази</button>
                 </form>
@@ -666,7 +669,7 @@ async function renderAppointments(view) {
         </div>
     `;
 
-    document.querySelector("[data-appointment-form]").addEventListener("submit", submitJson("/appointments", "POST"));
+    document.querySelector("[data-appointment-form]").addEventListener("submit", submitAppointment);
 
     const renderAppointmentList = (items) => {
         document.querySelector("[data-appointments-list]").innerHTML = appointmentTable(items);
@@ -933,6 +936,29 @@ function bindUserActions() {
             }
         });
     });
+}
+
+async function submitAppointment(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form).entries());
+    const day = values.appointment_date_day;
+    const time = values.appointment_date_time;
+
+    delete values.appointment_date_day;
+    delete values.appointment_date_time;
+    values.appointment_date = day + " " + time + ":00";
+
+    try {
+        await api("/appointments", {
+            method: "POST",
+            body: JSON.stringify(values)
+        });
+        setNotice("Записът е успешен.");
+        loadView();
+    } catch (error) {
+        setNotice(error.message, true);
+    }
 }
 
 function submitJson(path, method) {
