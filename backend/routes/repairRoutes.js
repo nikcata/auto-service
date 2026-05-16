@@ -1,11 +1,11 @@
 const express = require("express");
 const db = require("../db");
-const { verifyToken } = require("../middleware/authMiddleware");
+const { verifyToken, requireAdmin } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
 function calculateLabor(hoursWorked, pricePerHour) {
-    const hours = Number(hoursWorked || 0);
+    const hours = Math.max(0, Math.round(Number(hoursWorked || 0)));
     const hourlyPrice = Number(pricePerHour || 40);
 
     return {
@@ -209,7 +209,7 @@ router.patch("/repairs/:id/status", verifyToken, (req, res) => {
     });
 });
 
-router.delete("/repairs/:id", verifyToken, (req, res) => {
+router.delete("/repairs/:id", verifyToken, requireAdmin, (req, res) => {
     const sql = "DELETE FROM repairs WHERE id = ?";
 
     db.query(sql, [req.params.id], (err, result) => {

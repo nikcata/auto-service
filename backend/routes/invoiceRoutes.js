@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 const db = require("../db");
-const { verifyToken } = require("../middleware/authMiddleware");
+const { verifyToken, requireAdmin } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
@@ -120,7 +120,7 @@ router.get("/invoices/:id", verifyToken, (req, res) => {
     });
 });
 
-router.delete("/invoices/:id", verifyToken, (req, res) => {
+router.delete("/invoices/:id", verifyToken, requireAdmin, (req, res) => {
     db.query("SELECT pdf_path FROM invoices WHERE id = ?", [req.params.id], (selectErr, invoices) => {
         if (selectErr) return res.status(500).json({ error: "Database error" });
         if (invoices.length === 0) return res.status(404).json({ error: "Invoice not found" });
@@ -149,7 +149,7 @@ router.delete("/invoices/:id", verifyToken, (req, res) => {
     });
 });
 
-router.get("/invoice/:repairId", verifyToken, (req, res) => {
+router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
     const repairId = req.params.repairId;
 
     const sql = `

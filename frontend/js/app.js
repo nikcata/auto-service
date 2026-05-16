@@ -3,6 +3,7 @@ const API_URL = "";
 const state = {
     view: localStorage.getItem("currentView") || "dashboard",
     incomePeriod: localStorage.getItem("incomePeriod") || "month",
+    dashboardMonth: localStorage.getItem("dashboardMonth") || "",
     selectedRepairId: localStorage.getItem("selectedRepairId") || "",
     user: JSON.parse(localStorage.getItem("user") || "null"),
     token: localStorage.getItem("token"),
@@ -16,7 +17,13 @@ const incomePeriodLabels = {
     year: "Година"
 };
 
+const VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
+const VIN_ERROR_MESSAGE = "VIN трябва да бъде точно 17 символа и да съдържа само цифри и букви без I, O и Q.";
+
 const app = document.getElementById("app");
+const modalRoot = document.createElement("div");
+modalRoot.id = "modal-root";
+document.body.appendChild(modalRoot);
 
 function escapeHtml(value) {
     return String(value ?? "")
@@ -38,12 +45,41 @@ function formatDate(value) {
 
 function formatInputDate(value) {
     if (!value) return "";
-    return new Date(value).toISOString().slice(0, 10);
+    const date = new Date(value);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
 }
 
 function formatDateTime(value) {
     if (!value) return "-";
     return new Date(value).toLocaleString("bg-BG");
+}
+
+function dateKey(value) {
+    const date = new Date(value);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+}
+
+function monthKey(value) {
+    const date = value ? new Date(value) : new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+
+    return `${year}-${month}`;
+}
+
+function monthDateFromKey(value) {
+    const key = value || monthKey();
+    const [year, month] = key.split("-").map(Number);
+
+    return new Date(year, month - 1, 1);
 }
 
 async function api(path, options = {}) {
@@ -87,12 +123,34 @@ async function api(path, options = {}) {
 
 function normalizeFormValues(values) {
     Object.keys(values).forEach((key) => {
+        if (key === "vin" && typeof values[key] === "string") {
+            values[key] = values[key].trim().toUpperCase();
+        }
+
         if (typeof values[key] === "string" && values[key].includes("T") && key.includes("date")) {
             values[key] = values[key].replace("T", " ");
         }
     });
 
     return values;
+}
+
+function validateFormValues(values) {
+    if (values.vin && !VIN_PATTERN.test(values.vin)) {
+        throw new Error(VIN_ERROR_MESSAGE);
+    }
+}
+
+function bindVinInputs(scope = document) {
+    scope.querySelectorAll("[data-vin-input]").forEach((input) => {
+        input.addEventListener("input", () => {
+            input.value = input.value
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, "")
+                .replace(/[IOQ]/g, "")
+                .slice(0, 17);
+        });
+    });
 }
 
 function setNotice(message, isError = false) {
@@ -175,8 +233,10 @@ async function handleAuth(event) {
 
         state.token = result.token;
         state.user = result.user;
+        state.view = "dashboard";
         localStorage.setItem("token", result.token);
         localStorage.setItem("user", JSON.stringify(result.user));
+        localStorage.setItem("currentView", state.view);
         render();
     } catch (error) {
         setNotice(error.message, true);
@@ -262,69 +322,237 @@ async function loadView() {
 }
 
 async function renderDashboard(view) {
-    const stats = await api(`/stats?income_period=${encodeURIComponent(state.incomePeriod)}`);
+    const [stats, appointments] = await Promise.all([
+        api(`/stats?income_period=${encodeURIComponent(state.incomePeriod)}`),
+        api("/appointments")
+    ]);
     const periodOptions = Object.entries(incomePeriodLabels)
         .map(([value, label]) => `<option value="${value}" ${state.incomePeriod === value ? "selected" : ""}>${label}</option>`)
         .join("");
+    const incomeCard = isAdmin()
+        ? `
+            <div class="card stat stat-button income-card" data-toggle-income>
+                <div class="income-card-head">
+                    <span>Приходи</span>
+                    <select data-income-period>
+                        ${periodOptions}
+                    </select>
+                </div>
+                <strong data-income-value data-hidden-value="••••" data-visible-value="${money(stats.total_income)}">••••</strong>
+                <small>Натисни за показване</small>
+            </div>
+        `
+        : `
+            <div class="card stat income-card income-card-locked">
+                <div class="income-card-head">
+                    <span>Приходи</span>
+                </div>
+                <strong>••••</strong>
+                <small>Само за админ</small>
+            </div>
+        `;
+
+    if (!state.dashboardMonth) {
+        state.dashboardMonth = monthKey();
+        localStorage.setItem("dashboardMonth", state.dashboardMonth);
+    }
 
     view.innerHTML = `
         <div class="section">
             <div class="grid">
                 <div class="card stat"><span>Клиенти</span><strong>${stats.total_customers}</strong></div>
                 <div class="card stat"><span>Ремонти</span><strong>${stats.total_repairs}</strong></div>
-                <div class="card stat stat-button income-card" data-toggle-income>
-                    <div class="income-card-head">
-                        <span>Приходи</span>
-                        <select data-income-period>
-                            ${periodOptions}
-                        </select>
-                    </div>
-                    <strong data-income-value data-hidden-value="••••" data-visible-value="${money(stats.total_income)}">••••</strong>
-                    <small>Натисни за показване</small>
-                </div>
+                ${incomeCard}
             </div>
             <div class="card">
-                <form class="search-line" data-search-form>
-                    <input name="query" placeholder="Търси по рег. номер, VIN, клиент или телефон">
-                    <button class="primary">Търси</button>
-                </form>
-                <div data-search-results></div>
+                <div data-dashboard-calendar>
+                    ${dashboardCalendar(appointments)}
+                </div>
             </div>
         </div>
     `;
 
-    document.querySelector("[data-income-period]").addEventListener("change", (event) => {
-        state.incomePeriod = event.target.value;
-        localStorage.setItem("incomePeriod", state.incomePeriod);
-        renderDashboard(view);
+    if (isAdmin()) {
+        document.querySelector("[data-income-period]").addEventListener("change", (event) => {
+            state.incomePeriod = event.target.value;
+            localStorage.setItem("incomePeriod", state.incomePeriod);
+            renderDashboard(view);
+        });
+
+        document.querySelector("[data-toggle-income]").addEventListener("click", (event) => {
+            if (event.target.closest("[data-income-period]")) return;
+
+            const value = document.querySelector("[data-income-value]");
+            const isHidden = value.textContent === value.dataset.hiddenValue;
+
+            value.textContent = isHidden ? value.dataset.visibleValue : value.dataset.hiddenValue;
+            document.querySelector("[data-toggle-income] small").textContent = isHidden ? "Натисни за скриване" : "Натисни за показване";
+        });
+    }
+
+    bindDashboardCalendarActions(appointments);
+}
+
+function dashboardCalendar(appointments) {
+    const monthDate = monthDateFromKey(state.dashboardMonth);
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const gridStart = new Date(year, month, 1 - startOffset);
+    const totalCells = Math.ceil((startOffset + lastDay.getDate()) / 7) * 7;
+    const weekdays = ["Пон", "Вто", "Сря", "Чет", "Пет", "Съб", "Нед"];
+    const todayKey = dateKey(new Date());
+    const appointmentsByDay = appointments.reduce((groups, appointment) => {
+        const key = dateKey(appointment.appointment_date);
+        groups[key] = groups[key] || [];
+        groups[key].push(appointment);
+        return groups;
+    }, {});
+
+    Object.values(appointmentsByDay).forEach((items) => {
+        items.sort((a, b) => new Date(a.appointment_date) - new Date(b.appointment_date));
     });
 
-    document.querySelector("[data-toggle-income]").addEventListener("click", (event) => {
-        if (event.target.closest("[data-income-period]")) return;
+    const days = Array.from({ length: totalCells }, (_, index) => {
+        const day = new Date(gridStart);
+        day.setDate(gridStart.getDate() + index);
+        const key = dateKey(day);
+        const dayAppointments = appointmentsByDay[key] || [];
+        const isCurrentMonth = day.getMonth() === month;
+        const isToday = key === todayKey;
 
-        const value = document.querySelector("[data-income-value]");
-        const isHidden = value.textContent === value.dataset.hiddenValue;
+        return `
+            <div class="dashboard-calendar-day ${isCurrentMonth ? "" : "muted-day"} ${isToday ? "today" : ""}">
+                <div class="dashboard-calendar-date">
+                    <span>${day.getDate()}</span>
+                    ${dayAppointments.length ? `<strong>${dayAppointments.length}</strong>` : ""}
+                </div>
+                <div class="dashboard-calendar-items">
+                    ${dayAppointments.map((appointment) => dashboardCalendarAppointment(appointment)).join("")}
+                </div>
+            </div>
+        `;
+    }).join("");
 
-        value.textContent = isHidden ? value.dataset.visibleValue : value.dataset.hiddenValue;
-        document.querySelector("[data-toggle-income] small").textContent = isHidden ? "Натисни за скриване" : "Натисни за показване";
+    return `
+        <div class="dashboard-calendar">
+            <div class="dashboard-calendar-head">
+                <div>
+                    <h3>Месечен календар</h3>
+                    <p>${monthDate.toLocaleDateString("bg-BG", { month: "long", year: "numeric" })}</p>
+                </div>
+                <div class="dashboard-calendar-controls">
+                    <button class="secondary small" data-dashboard-month="prev" type="button">‹</button>
+                    <button class="secondary small" data-dashboard-month="today" type="button">Днес</button>
+                    <button class="secondary small" data-dashboard-month="next" type="button">›</button>
+                </div>
+            </div>
+            <div class="dashboard-calendar-weekdays">
+                ${weekdays.map((day) => `<span>${day}</span>`).join("")}
+            </div>
+            <div class="dashboard-calendar-grid">
+                ${days}
+            </div>
+        </div>
+    `;
+}
+
+function appointmentStatusLabel(status) {
+    const labels = {
+        scheduled: "Записан",
+        completed: "Завършен",
+        cancelled: "Отказан"
+    };
+
+    return labels[status] || status || "-";
+}
+
+function dashboardCalendarAppointment(appointment) {
+    const time = new Date(appointment.appointment_date).toLocaleTimeString("bg-BG", {
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+    const status = appointment.status || "scheduled";
+    const statusText = appointmentStatusLabel(status);
+
+    return `
+        <button class="dashboard-calendar-appointment appointment-${escapeHtml(status)}" data-dashboard-appointment="${appointment.id}" type="button">
+            <span>${escapeHtml(time)} · ${escapeHtml(appointment.customer_name || "-")}</span>
+            <small>${escapeHtml(statusText)}</small>
+        </button>
+    `;
+}
+
+function bindDashboardCalendarActions(appointments) {
+    document.querySelectorAll("[data-dashboard-month]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const current = monthDateFromKey(state.dashboardMonth);
+
+            if (button.dataset.dashboardMonth === "prev") {
+                current.setMonth(current.getMonth() - 1);
+            } else if (button.dataset.dashboardMonth === "next") {
+                current.setMonth(current.getMonth() + 1);
+            } else {
+                const today = new Date();
+                current.setFullYear(today.getFullYear(), today.getMonth(), 1);
+            }
+
+            state.dashboardMonth = monthKey(current);
+            localStorage.setItem("dashboardMonth", state.dashboardMonth);
+            document.querySelector("[data-dashboard-calendar]").innerHTML = dashboardCalendar(appointments);
+            bindDashboardCalendarActions(appointments);
+        });
     });
 
-    document.querySelector("[data-search-form]").addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const query = new FormData(event.currentTarget).get("query");
-        const results = await api(`/search?query=${encodeURIComponent(query)}`);
-        document.querySelector("[data-search-results]").innerHTML = table(
-            ["Клиент", "Автомобил", "Рег. номер", "Ремонти", "Последен ремонт"],
-            results.map((item) => [
-                item.customer_name,
-                `${item.brand} ${item.model}`,
-                item.registration_number || "-",
-                item.repairs_count,
-                formatDate(item.last_repair_date)
-            ])
-        );
+    document.querySelectorAll("[data-dashboard-appointment]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const appointment = appointments.find((item) => String(item.id) === String(button.dataset.dashboardAppointment));
+            if (appointment) showAppointmentModal(appointment);
+        });
     });
 }
+
+function showAppointmentModal(appointment) {
+    const car = `${appointment.brand || ""} ${appointment.model || ""}`.trim();
+    const status = appointment.status || "scheduled";
+
+    modalRoot.innerHTML = `
+        <div class="modal-backdrop" data-close-modal>
+            <div class="modal-card" role="dialog" aria-modal="true" aria-label="Детайли за запис">
+                <div class="modal-head">
+                    <div>
+                        <h3>Детайли за запис</h3>
+                        <p>${escapeHtml(formatDateTime(appointment.appointment_date))}</p>
+                    </div>
+                    <button class="secondary small" data-close-modal type="button">Затвори</button>
+                </div>
+                <div class="appointment-modal-body">
+                    <strong class="appointment-status status-${escapeHtml(status)}">${escapeHtml(appointmentStatusLabel(status))}</strong>
+                    <p><b>Клиент:</b> ${escapeHtml(appointment.customer_name || "-")}</p>
+                    <p><b>Телефон:</b> ${escapeHtml(appointment.customer_phone || "-")}</p>
+                    <p><b>Автомобил:</b> ${car ? escapeHtml(car) : "-"} ${appointment.registration_number ? `(${escapeHtml(appointment.registration_number)})` : ""}</p>
+                    <p><b>Проблем:</b> ${escapeHtml(appointment.reason || "Без описание")}</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modalRoot.querySelectorAll("[data-close-modal]").forEach((element) => {
+        element.addEventListener("click", (event) => {
+            if (event.target === element) {
+                modalRoot.innerHTML = "";
+            }
+        });
+    });
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        modalRoot.innerHTML = "";
+    }
+});
 
 async function renderCustomers(view) {
     const customers = await api("/customers");
@@ -409,7 +637,7 @@ async function renderCars(view) {
                     </div>
                     <div class="form-row">
                         <label>Рег. номер<input name="registration_number"></label>
-                        <label>VIN<input name="vin"></label>
+                        <label>VIN<input name="vin" data-vin-input maxlength="17" pattern="[A-HJ-NPR-Z0-9]{17}" title="VIN трябва да бъде точно 17 символа и да съдържа само цифри и букви без I, O и Q." placeholder="17 символа"></label>
                     </div>
                     <div class="form-row">
                         <label>Двигател<input name="engine"></label>
@@ -429,6 +657,7 @@ async function renderCars(view) {
     `;
 
     document.querySelector("[data-car-form]").addEventListener("submit", submitJson("/cars", "POST"));
+    bindVinInputs(view);
 
     const renderCarList = (items) => {
         document.querySelector("[data-cars-list]").innerHTML = carTable(items);
@@ -567,7 +796,7 @@ function repairLaborForm(repair) {
             <input type="hidden" name="status" value="${escapeHtml(repair.status || "open")}">
             <h4>Труд</h4>
             <div class="form-row">
-                <label>Труд (часове)<input name="hours_worked" type="number" step="0.25" value="${escapeHtml(repair.hours_worked || 0)}"></label>
+                <label>Труд (часове)<input name="hours_worked" type="number" min="0" step="1" value="${escapeHtml(Math.round(Number(repair.hours_worked || 0)))}"></label>
                 <label>Цена на час<input name="price_per_hour" type="number" step="0.01" value="${escapeHtml(repair.price_per_hour || 40)}"></label>
             </div>
         </div>
@@ -585,8 +814,8 @@ function completedRepairTable(repairs) {
         `<div class="actions">
             <button class="secondary small" data-repair-detail="${r.id}">Детайли</button>
             <button class="secondary small" data-repair-edit="${r.id}">Редактирай</button>
-            <button class="secondary small" data-invoice="${r.id}">Издай фактура</button>
-            <button class="danger small" data-delete-repair="${r.id}">Изтрий</button>
+            ${isAdmin() ? `<button class="secondary small" data-invoice="${r.id}">Издай фактура</button>` : ""}
+            ${isAdmin() ? `<button class="danger small" data-delete-repair="${r.id}">Изтрий</button>` : ""}
         </div>`
     ]));
 }
@@ -594,7 +823,7 @@ function completedRepairTable(repairs) {
 function bindCompletedRepairActions() {
     document.querySelectorAll("[data-invoice]").forEach((button) => button.addEventListener("click", generateInvoice));
     document.querySelectorAll("[data-repair-detail]").forEach((button) => {
-        button.addEventListener("click", () => renderRepairDetails(button.dataset.repairDetail));
+        button.addEventListener("click", () => toggleRepairDetails(button.dataset.repairDetail));
     });
     document.querySelectorAll("[data-repair-edit]").forEach((button) => {
         button.addEventListener("click", () => renderRepairEdit(button.dataset.repairEdit));
@@ -819,7 +1048,7 @@ function invoiceTable(invoices) {
                             <td>
                                 <div class="actions">
                                     <a class="secondary small" href="${API_URL}/${escapeHtml(i.pdf_path)}" target="_blank">Отвори</a>
-                                    <button class="danger small" data-delete-invoice="${i.id}">Изтрий</button>
+                                    ${isAdmin() ? `<button class="danger small" data-delete-invoice="${i.id}">Изтрий</button>` : ""}
                                 </div>
                             </td>
                         </tr>
@@ -967,6 +1196,8 @@ function submitJson(path, method) {
         const values = normalizeFormValues(Object.fromEntries(new FormData(event.currentTarget).entries()));
 
         try {
+            validateFormValues(values);
+
             await api(path, {
                 method,
                 body: JSON.stringify(values)
@@ -1073,6 +1304,15 @@ async function deleteRecord(path, message) {
     }
 }
 
+function closeRepairDetails() {
+    const box = document.querySelector("[data-repair-detail-box]");
+    if (!box) return;
+
+    box.hidden = true;
+    box.dataset.openRepairId = "";
+    box.innerHTML = "";
+}
+
 async function renderRepairDetails(repairId) {
     const box = document.querySelector("[data-repair-detail-box]");
     if (!box) return;
@@ -1080,6 +1320,7 @@ async function renderRepairDetails(repairId) {
     try {
         const repair = await api(`/repairs/${repairId}`);
         box.hidden = false;
+        box.dataset.openRepairId = String(repairId);
         box.innerHTML = `
             <h3>Детайли за ремонт #${escapeHtml(repair.id)}</h3>
             <div class="grid two">
@@ -1108,6 +1349,18 @@ async function renderRepairDetails(repairId) {
     }
 }
 
+function toggleRepairDetails(repairId) {
+    const box = document.querySelector("[data-repair-detail-box]");
+    if (!box) return;
+
+    if (!box.hidden && box.dataset.openRepairId === String(repairId)) {
+        closeRepairDetails();
+        return;
+    }
+
+    renderRepairDetails(repairId);
+}
+
 async function renderRepairEdit(repairId) {
     const box = document.querySelector("[data-repair-detail-box]");
     if (!box) return;
@@ -1125,7 +1378,7 @@ async function renderRepairEdit(repairId) {
                     <label>Майстор<input name="mechanic_name" required value="${escapeHtml(repair.mechanic_name || "")}"></label>
                 </div>
                 <div class="form-row">
-                    <label>Труд (часове)<input name="hours_worked" type="number" step="0.25" value="${escapeHtml(repair.hours_worked || 0)}"></label>
+                    <label>Труд (часове)<input name="hours_worked" type="number" min="0" step="1" value="${escapeHtml(Math.round(Number(repair.hours_worked || 0)))}"></label>
                     <label>Цена на час<input name="price_per_hour" type="number" step="0.01" value="${escapeHtml(repair.price_per_hour || 40)}"></label>
                 </div>
                 <label>Описание<textarea name="description">${escapeHtml(repair.description || "")}</textarea></label>
@@ -1152,7 +1405,7 @@ async function renderRepairEdit(repairId) {
         `;
 
         document.querySelector("[data-repair-edit-form]").addEventListener("submit", submitRepairEdit);
-        document.querySelector("[data-cancel-repair-edit]").addEventListener("click", () => renderRepairDetails(repairId));
+        document.querySelector("[data-cancel-repair-edit]").addEventListener("click", closeRepairDetails);
         document.querySelectorAll("[data-edit-part]").forEach((button) => {
             button.addEventListener("click", () => renderPartEdit(repairId, button.dataset.editPart));
         });
@@ -1184,7 +1437,11 @@ async function submitRepairEdit(event) {
 
         setNotice("Ремонтът е обновен.");
         await refreshCompletedRepairList();
-        renderRepairEdit(repairId);
+        const box = document.querySelector("[data-repair-detail-box]");
+        if (box) {
+            box.hidden = true;
+            box.innerHTML = "";
+        }
     } catch (error) {
         setNotice(error.message, true);
     }

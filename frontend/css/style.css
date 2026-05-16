@@ -204,6 +204,10 @@ button {
     cursor: pointer;
 }
 
+.income-card-locked {
+    cursor: default;
+}
+
 .income-card-head {
     display: flex;
     align-items: center;
@@ -277,7 +281,7 @@ td {
     border-bottom: 1px solid var(--line);
     padding: 11px 8px;
     text-align: left;
-    vertical-align: top;
+    vertical-align: middle;
 }
 
 th {
@@ -377,6 +381,264 @@ th {
     justify-content: center;
 }
 
+.dashboard-calendar {
+    display: grid;
+    gap: 14px;
+}
+
+.dashboard-calendar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.dashboard-calendar-head h3 {
+    margin: 0;
+}
+
+.dashboard-calendar-head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    text-transform: capitalize;
+}
+
+.dashboard-calendar-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.dashboard-calendar-weekdays,
+.dashboard-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.dashboard-calendar-weekdays {
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+}
+
+.dashboard-calendar-weekdays span {
+    background: #f8fafc;
+    color: var(--muted);
+    font-weight: 700;
+    padding: 10px;
+    text-align: center;
+    border-right: 1px solid var(--line);
+}
+
+.dashboard-calendar-weekdays span:last-child {
+    border-right: 0;
+}
+
+.dashboard-calendar-grid {
+    border-left: 1px solid var(--line);
+    border-top: 1px solid var(--line);
+}
+
+.dashboard-calendar-day {
+    height: 118px;
+    background: #ffffff;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 8px;
+    overflow: hidden;
+}
+
+.dashboard-calendar-day.muted-day {
+    background: #f8fafc;
+    color: #98a2b3;
+}
+
+.dashboard-calendar-day.today {
+    box-shadow: inset 0 0 0 2px var(--brand);
+}
+
+.dashboard-calendar-date {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-weight: 700;
+}
+
+.dashboard-calendar-date strong {
+    min-width: 22px;
+    border-radius: 999px;
+    background: var(--brand);
+    color: #ffffff;
+    font-size: 12px;
+    line-height: 22px;
+    text-align: center;
+}
+
+.dashboard-calendar-items {
+    display: grid;
+    gap: 6px;
+    max-height: 76px;
+    overflow-y: auto;
+    padding-right: 3px;
+    overscroll-behavior: contain;
+}
+
+.dashboard-calendar-items::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dashboard-calendar-items::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+
+.dashboard-calendar-items::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.dashboard-calendar-appointment {
+    width: 100%;
+    border-radius: 6px;
+    background: #e8edf5;
+    border-left: 4px solid #64748b;
+    color: var(--text);
+    padding: 7px 8px 7px 9px;
+    text-align: left;
+    line-height: 1.25;
+}
+
+.dashboard-calendar-appointment:hover {
+    background: #dbe4f0;
+}
+
+.dashboard-calendar-appointment.appointment-completed {
+    background: #dcfae6;
+    border-left-color: #079455;
+    color: #064e3b;
+}
+
+.dashboard-calendar-appointment.appointment-completed:hover {
+    background: #c7f5d8;
+}
+
+.dashboard-calendar-appointment.appointment-completed span::before {
+    content: "✓ ";
+}
+
+.dashboard-calendar-appointment.appointment-cancelled {
+    background: #fee4e2;
+    border-left-color: var(--danger);
+    color: #7f1d1d;
+    opacity: 0.82;
+}
+
+.dashboard-calendar-appointment.appointment-cancelled:hover {
+    background: #fecdca;
+}
+
+.dashboard-calendar-appointment span,
+.dashboard-calendar-appointment small,
+.dashboard-calendar-appointment em {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dashboard-calendar-appointment span {
+    font-weight: 700;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-calendar-appointment small {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.dashboard-calendar-appointment.appointment-completed small,
+.dashboard-calendar-appointment.appointment-cancelled small {
+    color: inherit;
+}
+
+.dashboard-calendar-appointment em {
+    margin-top: 3px;
+    font-style: normal;
+    font-size: 12px;
+}
+
+.appointment-status {
+    display: inline-flex;
+    width: fit-content;
+    border-radius: 999px;
+    padding: 3px 8px;
+    margin-bottom: 3px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.status-scheduled {
+    background: #e8edf5;
+    color: #1f2937;
+}
+
+.status-completed {
+    background: #dcfae6;
+    color: #067647;
+}
+
+.status-cancelled {
+    background: #fee4e2;
+    color: var(--danger);
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.48);
+}
+
+.modal-card {
+    width: min(460px, 100%);
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+    padding: 18px;
+}
+
+.modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+}
+
+.modal-head h3 {
+    margin: 0;
+}
+
+.modal-head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+}
+
+.appointment-modal-body {
+    display: grid;
+    gap: 10px;
+}
+
+.appointment-modal-body p {
+    margin: 0;
+}
+
 .repair-table th:last-child,
 .repair-table td:last-child {
     text-align: center;
@@ -409,6 +671,7 @@ th {
 
 .actions {
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
     gap: 8px;
 }

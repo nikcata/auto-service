@@ -27,7 +27,7 @@ CREATE TABLE cars (
     model VARCHAR(50),
     year INT,
     registration_number VARCHAR(20),
-    vin VARCHAR(50),
+    vin VARCHAR(17),
     engine VARCHAR(50),
     mileage INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
