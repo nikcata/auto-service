@@ -11,8 +11,6 @@ const repairRoutes = require("./routes/repairRoutes");
 const statsRoutes = require("./routes/statsRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
 const appointmentRoutes = require("./routes/appointmentRoutes");
-const searchRoutes = require("./routes/searchRoutes");
-const { verifyToken } = require("./middleware/authMiddleware");
 
 const app = express();
 
@@ -25,13 +23,6 @@ app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "..", "frontend", "index.html"));
 });
 
-app.get("/dashboard", verifyToken, (req, res) => {
-    res.json({
-        message: "Welcome to dashboard!",
-        user: req.user
-    });
-});
-
 app.use(authRoutes);
 app.use(customerRoutes);
 app.use(carRoutes);
@@ -39,7 +30,6 @@ app.use(repairRoutes);
 app.use(statsRoutes);
 app.use(invoiceRoutes);
 app.use(appointmentRoutes);
-app.use(searchRoutes);
 
 const PORT = process.env.PORT || 3000;
 

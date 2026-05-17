@@ -26,15 +26,15 @@ router.get("/customers/:id", verifyToken, (req, res) => {
 });
 
 router.post("/customers", verifyToken, (req, res) => {
-    const { full_name, phone, email, address } = req.body;
+    const { full_name, phone } = req.body;
 
     if (!full_name) {
         return res.status(400).json({ error: "Full name is required" });
     }
 
-    const sql = "INSERT INTO customers (full_name, phone, email, address) VALUES (?, ?, ?, ?)";
+    const sql = "INSERT INTO customers (full_name, phone) VALUES (?, ?)";
 
-    db.query(sql, [full_name, phone, email, address], (err, result) => {
+    db.query(sql, [full_name, phone], (err, result) => {
         if (err) return res.status(500).json({ error: "Database error" });
 
         res.json({
@@ -45,7 +45,7 @@ router.post("/customers", verifyToken, (req, res) => {
 });
 
 router.put("/customers/:id", verifyToken, (req, res) => {
-    const { full_name, phone, email, address } = req.body;
+    const { full_name, phone } = req.body;
 
     if (!full_name) {
         return res.status(400).json({ error: "Full name is required" });
@@ -53,11 +53,11 @@ router.put("/customers/:id", verifyToken, (req, res) => {
 
     const sql = `
         UPDATE customers
-        SET full_name = ?, phone = ?, email = ?, address = ?
+        SET full_name = ?, phone = ?
         WHERE id = ?
     `;
 
-    db.query(sql, [full_name, phone, email, address, req.params.id], (err, result) => {
+    db.query(sql, [full_name, phone, req.params.id], (err, result) => {
         if (err) return res.status(500).json({ error: "Database error" });
         if (result.affectedRows === 0) return res.status(404).json({ error: "Customer not found" });
 
