@@ -288,6 +288,14 @@ th {
     color: var(--muted);
     font-weight: 700;
     background: #f8fafc;
+    text-align: left;
+    vertical-align: middle;
+}
+
+table thead th,
+.card table thead th {
+    text-align: left !important;
+    vertical-align: middle !important;
 }
 
 .muted {
@@ -310,6 +318,10 @@ th {
     vertical-align: middle;
 }
 
+.appointment-table td {
+    text-align: left;
+}
+
 .appointment-table th:nth-child(1),
 .appointment-table td:nth-child(1) {
     width: 125px;
@@ -330,14 +342,103 @@ th {
     width: auto;
 }
 
+.appointment-reason {
+    display: block;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    padding: 0;
+    font: inherit;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.appointment-reason:hover {
+    color: var(--brand);
+    text-decoration: underline;
+}
+
 .appointment-table th:nth-child(5),
 .appointment-table td:nth-child(5) {
     width: 125px;
+    text-align: center;
 }
 
 .appointment-table th:nth-child(6),
 .appointment-table td:nth-child(6) {
     width: 160px;
+    text-align: center;
+}
+
+.appointment-table thead th:nth-child(4),
+.appointment-table thead th:nth-child(5),
+.appointment-table thead th:nth-child(6) {
+    text-align: center !important;
+}
+
+.appointment-table .appointment-actions {
+    justify-content: center;
+}
+
+.car-table table thead th {
+    text-align: center !important;
+}
+
+.car-table table th,
+.car-table table td {
+    text-align: center !important;
+}
+
+.car-table table th:first-child,
+.car-table table td:first-child {
+    text-align: left !important;
+}
+
+.car-table table {
+    table-layout: fixed;
+}
+
+.car-table table th:nth-child(1),
+.car-table table td:nth-child(1) {
+    width: 5%;
+}
+
+.car-table table th:nth-child(2),
+.car-table table td:nth-child(2) {
+    width: 20%;
+}
+
+.car-table table th:nth-child(3),
+.car-table table td:nth-child(3) {
+    width: 25%;
+}
+
+.car-table table th:nth-child(4),
+.car-table table td:nth-child(4) {
+    width: 16%;
+}
+
+.car-table table th:nth-child(5),
+.car-table table td:nth-child(5) {
+    width: 20%;
+}
+
+.car-table table th:nth-child(6),
+.car-table table td:nth-child(6) {
+    width: 14%;
+}
+
+.car-table .actions {
+    justify-content: center;
+}
+
+.car-table table td:nth-child(6) {
+    padding-left: 0;
+    padding-right: 0;
 }
 
 .invoice-table {
@@ -349,6 +450,10 @@ th {
 .invoice-table td {
     text-align: center;
     vertical-align: middle;
+}
+
+.invoice-table td {
+    text-align: left;
 }
 
 .invoice-table th:first-child,
@@ -379,6 +484,16 @@ th {
 
 .invoice-table .actions {
     justify-content: center;
+    flex-wrap: nowrap;
+}
+
+.invoice-table th:nth-child(5),
+.invoice-table td:nth-child(5) {
+    text-align: center;
+}
+
+.invoice-table thead th:nth-child(5) {
+    text-align: center !important;
 }
 
 .dashboard-calendar {
@@ -639,9 +754,24 @@ th {
     margin: 0;
 }
 
+.reason-modal-text {
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #f8fafc;
+    padding: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
 .repair-table th:last-child,
 .repair-table td:last-child {
     text-align: center;
+}
+
+.repair-table table thead th:last-child {
+    text-align: center !important;
 }
 
 .repair-table .actions {
@@ -653,8 +783,12 @@ th {
     text-align: center;
 }
 
+.part-table td:last-child {
+    text-align: left;
+}
+
 .part-table .actions {
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .status-select {

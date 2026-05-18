@@ -29,7 +29,7 @@ async function renderCars(view) {
                 <div class="search-line car-search">
                     <input data-car-search placeholder="Търси по клиент, марка, модел, рег. номер или VIN">
                 </div>
-                <div data-cars-list></div>
+                <div class="car-table" data-cars-list></div>
             </div>
         </div>
     `;

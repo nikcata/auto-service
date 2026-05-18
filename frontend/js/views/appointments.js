@@ -11,7 +11,7 @@ async function renderAppointments(view) {
                         <label>Дата<input name="appointment_date_day" type="date" required></label>
                         <label>Час<input name="appointment_date_time" type="time" required></label>
                     </div>
-                    <label>Причина<input name="reason"></label>
+                    <label>Причина<textarea name="reason"></textarea></label>
                     <button class="primary">Запази</button>
                 </form>
             </div>
@@ -29,7 +29,7 @@ async function renderAppointments(view) {
 
     const renderAppointmentList = (items) => {
         document.querySelector("[data-appointments-list]").innerHTML = appointmentTable(items);
-        bindAppointmentActions();
+        bindAppointmentActions(items);
     };
 
     renderAppointmentList(appointments);
@@ -73,9 +73,11 @@ function appointmentTable(appointments) {
                     ${appointments.map((a) => `
                         <tr>
                             <td>${new Date(a.appointment_date).toLocaleString("bg-BG")}</td>
-                            <td>${escapeHtml(a.customer_name)}</td>
+                            <td>${twoLineName(a.customer_name)}</td>
                             <td>${escapeHtml(`${a.brand} ${a.model}`)}<br><span class="muted">${escapeHtml(a.registration_number || "-")}</span></td>
-                            <td>${escapeHtml(a.reason || "-")}</td>
+                            <td>
+                                <button class="appointment-reason" data-appointment-reason="${a.id}" type="button">${escapeHtml(a.reason || "-")}</button>
+                            </td>
                             <td>
                                 <select class="status-select" data-appointment-status="${a.id}">
                                     <option value="scheduled" ${a.status === "scheduled" ? "selected" : ""}>Записан</option>
@@ -97,13 +99,59 @@ function appointmentTable(appointments) {
     `;
 }
 
-function bindAppointmentActions() {
+function twoLineName(name) {
+    const parts = String(name || "-").trim().split(/\s+/);
+    if (parts.length <= 1) return escapeHtml(parts[0] || "-");
+
+    return `${escapeHtml(parts[0])}<br>${escapeHtml(parts.slice(1).join(" "))}`;
+}
+
+function bindAppointmentActions(appointments = []) {
+    document.querySelectorAll("[data-appointment-reason]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const appointment = appointments.find((item) => String(item.id) === String(button.dataset.appointmentReason));
+            if (appointment) showAppointmentReasonModal(appointment);
+        });
+    });
+
     document.querySelectorAll("[data-save-appointment-status]").forEach((button) => {
         button.addEventListener("click", () => updateAppointmentStatus(button.dataset.saveAppointmentStatus, button));
     });
 
     document.querySelectorAll("[data-delete-appointment]").forEach((button) => {
         button.addEventListener("click", () => deleteRecord(`/appointments/${button.dataset.deleteAppointment}`, "Да изтрия ли този запис от календара?"));
+    });
+}
+
+function showAppointmentReasonModal(appointment) {
+    const car = `${appointment.brand || ""} ${appointment.model || ""}`.trim();
+    const reason = appointment.reason || "Няма въведена причина.";
+
+    modalRoot.innerHTML = `
+        <div class="modal-backdrop" data-close-modal>
+            <div class="modal-card" role="dialog" aria-modal="true" aria-label="Причина за запис">
+                <div class="modal-head">
+                    <div>
+                        <h3>Причина за запис</h3>
+                        <p>${escapeHtml(formatDateTime(appointment.appointment_date))}</p>
+                    </div>
+                    <button class="secondary small" data-close-modal type="button">Затвори</button>
+                </div>
+                <div class="appointment-modal-body">
+                    <p><b>Клиент:</b> ${escapeHtml(appointment.customer_name || "-")}</p>
+                    <p><b>Автомобил:</b> ${car ? escapeHtml(car) : "-"} ${appointment.registration_number ? `(${escapeHtml(appointment.registration_number)})` : ""}</p>
+                    <div class="reason-modal-text">${escapeHtml(reason)}</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modalRoot.querySelectorAll("[data-close-modal]").forEach((element) => {
+        element.addEventListener("click", (event) => {
+            if (event.target === element) {
+                modalRoot.innerHTML = "";
+            }
+        });
     });
 }
 
