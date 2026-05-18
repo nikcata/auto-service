@@ -63,7 +63,7 @@ CREATE TABLE appointments (
     customer_id INT,
     car_id INT,
     appointment_date DATETIME NOT NULL,
-    reason VARCHAR(255),
+    reason TEXT,
     status VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
