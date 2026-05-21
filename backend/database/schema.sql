@@ -13,6 +13,7 @@ CREATE TABLE customers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     full_name VARCHAR(100) NOT NULL,
     phone VARCHAR(30),
+    deleted_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -26,6 +27,7 @@ CREATE TABLE cars (
     vin VARCHAR(17),
     engine VARCHAR(50),
     mileage INT,
+    deleted_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
@@ -42,6 +44,7 @@ CREATE TABLE repairs (
     labor_price DECIMAL(10,2),
     total_price DECIMAL(10,2),
     status VARCHAR(50),
+    archived_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
 );
@@ -72,11 +75,12 @@ CREATE TABLE appointments (
 
 CREATE TABLE invoices (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    repair_id INT,
+    repair_id INT UNIQUE,
     invoice_number VARCHAR(50) NOT NULL,
     issue_date DATE,
     total_amount DECIMAL(10,2),
     pdf_path VARCHAR(255),
+    status VARCHAR(20) NOT NULL DEFAULT 'issued',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (repair_id) REFERENCES repairs(id) ON DELETE CASCADE
 );

@@ -9,11 +9,18 @@ async function submitAppointment(event) {
     delete values.appointment_date_time;
     values.appointment_date = day + " " + time + ":00";
 
+    const appointmentDate = new Date(`${day}T${time}:00`);
+    if (!day || !time || Number.isNaN(appointmentDate.getTime()) || appointmentDate <= new Date()) {
+        setNotice("Не може да се записва час със задна дата или минал час.", true);
+        return;
+    }
+
     try {
         await api("/appointments", {
             method: "POST",
             body: JSON.stringify(values)
         });
+        clearFormDraft(form);
         setNotice("Записът е успешен.");
         loadView();
     } catch (error) {
@@ -33,6 +40,7 @@ function submitJson(path, method) {
                 method,
                 body: JSON.stringify(values)
             });
+            clearFormDraft(event.currentTarget);
             setNotice("Записът е успешен.");
             loadView();
         } catch (error) {
@@ -51,8 +59,9 @@ async function submitRepairPart(event) {
             body: JSON.stringify(values)
         });
 
+        clearFormDraft(event.currentTarget);
         state.selectedRepairId = String(values.repair_id || "");
-        localStorage.setItem("selectedRepairId", state.selectedRepairId);
+        sessionStorage.setItem("selectedRepairId", state.selectedRepairId);
         setNotice("Частта е добавена.");
         loadView();
     } catch (error) {
@@ -94,7 +103,7 @@ async function finishRepair(repairId) {
 
         if (String(state.selectedRepairId) === String(repairId)) {
             state.selectedRepairId = "";
-            localStorage.removeItem("selectedRepairId");
+            sessionStorage.removeItem("selectedRepairId");
         }
 
         setNotice("Ремонтът е завършен.");
@@ -113,9 +122,10 @@ async function startRepairFromAppointment(event) {
         const result = await api(`/appointments/${appointmentId}/start-repair`, { method: "POST" });
         if (result?.repair_id) {
             state.selectedRepairId = String(result.repair_id);
-            localStorage.setItem("selectedRepairId", state.selectedRepairId);
+            sessionStorage.setItem("selectedRepairId", state.selectedRepairId);
         }
 
+        clearFormDraft(form);
         setNotice("Ремонтът е започнат от записания час.");
         loadView();
     } catch (error) {
@@ -129,6 +139,29 @@ async function deleteRecord(path, message) {
     try {
         await api(path, { method: "DELETE" });
         setNotice("Записът е изтрит.");
+        loadView();
+    } catch (error) {
+        setNotice(error.message, true);
+    }
+}
+
+async function deleteOpenRepair(repairId) {
+    if (!repairId) {
+        setNotice("Първо избери ремонт.", true);
+        return;
+    }
+
+    if (!confirm("Да премахна ли този започнат ремонт? Частите към него ще се изтрият, а часът от календара ще остане наличен.")) return;
+
+    try {
+        await api(`/repairs/${repairId}`, { method: "DELETE" });
+
+        if (String(state.selectedRepairId) === String(repairId)) {
+            state.selectedRepairId = "";
+            sessionStorage.removeItem("selectedRepairId");
+        }
+
+        setNotice("Започнатият ремонт е премахнат.");
         loadView();
     } catch (error) {
         setNotice(error.message, true);
@@ -167,8 +200,8 @@ async function renderRepairDetails(repairId) {
             <div class="part-table">
                 ${table(["ID", "Част", "Марка", "Бр.", "Ед. цена", "Общо"], repair.parts.map((part) => [
                     part.id,
-                    escapeHtml(part.part_name),
-                    escapeHtml(part.brand || "-"),
+                    shortText(part.part_name, 28),
+                    shortText(part.brand || "-", 22),
                     part.quantity,
                     money(part.unit_price),
                     money(part.total_price)
@@ -209,7 +242,7 @@ async function renderRepairEdit(repairId) {
                     <label>Майстор<input name="mechanic_name" required value="${escapeHtml(repair.mechanic_name || "")}"></label>
                 </div>
                 <div class="form-row">
-                    <label>Труд (часове)<input name="hours_worked" type="number" min="0" step="1" value="${escapeHtml(Math.round(Number(repair.hours_worked || 0)))}"></label>
+                    <label>Труд (часове)<input name="hours_worked" type="number" min="1" step="1" value="${escapeHtml(Math.max(1, Math.round(Number(repair.hours_worked || 1))))}"></label>
                     <label>Цена на час<input name="price_per_hour" type="number" step="0.01" value="${escapeHtml(repair.price_per_hour || 40)}"></label>
                 </div>
                 <label>Описание<textarea name="description">${escapeHtml(repair.description || "")}</textarea></label>
@@ -222,8 +255,8 @@ async function renderRepairEdit(repairId) {
             <div class="part-table">
                 ${table(["ID", "Част", "Марка", "Бр.", "Ед. цена", "Общо", "Действия"], repair.parts.map((part) => [
                     part.id,
-                    escapeHtml(part.part_name),
-                    escapeHtml(part.brand || "-"),
+                    shortText(part.part_name, 28),
+                    shortText(part.brand || "-", 22),
                     part.quantity,
                     money(part.unit_price),
                     money(part.total_price),
@@ -355,11 +388,101 @@ async function generateInvoice(event) {
     const repairId = event.currentTarget.dataset.invoice;
 
     try {
-        const result = await api(`/invoice/${repairId}`);
-        window.open(`${API_URL}/${result.file}`, "_blank");
-        setNotice("Фактурата е генерирана.");
+        const repair = await api(`/repairs/${repairId}`);
+        showInvoicePreview(repair);
     } catch (error) {
         setNotice(error.message, true);
+    }
+}
+
+function showInvoicePreview(repair) {
+    const parts = repair.parts || [];
+    const partsTotal = parts.reduce((sum, part) => sum + Number(part.total_price || 0), 0);
+    const finalTotal = Number(repair.labor_price || 0) + partsTotal;
+
+    modalRoot.innerHTML = `
+        <div class="modal-backdrop" data-close-invoice-preview>
+            <div class="modal-card invoice-preview-modal" role="dialog" aria-modal="true" aria-label="Преглед преди фактура">
+                <div class="modal-head">
+                    <div>
+                        <h3>Преглед преди фактура</h3>
+                        <p>Ремонт #${escapeHtml(repair.id)}</p>
+                    </div>
+                    <button class="secondary small" data-close-invoice-preview type="button">Затвори</button>
+                </div>
+                <div class="invoice-preview-body">
+                    <div class="invoice-preview-grid">
+                        <p><strong>Клиент:</strong> ${escapeHtml(repair.customer_name || "-")}</p>
+                        <p><strong>Автомобил:</strong> ${escapeHtml(`${repair.brand || ""} ${repair.model || ""}`.trim() || "-")}</p>
+                        <p><strong>Рег. номер:</strong> ${escapeHtml(repair.registration_number || "-")}</p>
+                        <p><strong>Майстор:</strong> ${escapeHtml(repair.mechanic_name || "-")}</p>
+                        <p><strong>Труд:</strong> ${escapeHtml(repair.hours_worked || 0)} ч. x ${money(repair.price_per_hour || 0)}</p>
+                        <p><strong>Сума труд:</strong> ${money(repair.labor_price || 0)}</p>
+                    </div>
+                    <div class="invoice-preview-description">
+                        <strong>Описание:</strong>
+                        <p>${escapeHtml(repair.description || "-")}</p>
+                    </div>
+                    <div class="invoice-preview-parts">
+                        <h4>Части</h4>
+                        ${parts.length ? table(["Част", "Марка", "Бр.", "Ед. цена", "Общо"], parts.map((part) => [
+                            shortText(part.part_name, 28),
+                            shortText(part.brand || "-", 22),
+                            part.quantity,
+                            money(part.unit_price),
+                            money(part.total_price)
+                        ])) : '<p class="empty">Няма добавени части.</p>'}
+                    </div>
+                    <div class="invoice-preview-total">
+                        <span>Крайна сума</span>
+                        <strong>${money(finalTotal)}</strong>
+                    </div>
+                    <div class="actions invoice-preview-actions">
+                        <button class="secondary" data-close-invoice-preview type="button">Отказ</button>
+                        <button class="primary" data-confirm-invoice="${escapeHtml(repair.id)}" type="button">Потвърди и издай</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modalRoot.querySelectorAll("[data-close-invoice-preview]").forEach((element) => {
+        element.addEventListener("click", (event) => {
+            if (event.target === element || element.tagName === "BUTTON") {
+                modalRoot.innerHTML = "";
+            }
+        });
+    });
+
+    modalRoot.querySelector("[data-confirm-invoice]").addEventListener("click", confirmGenerateInvoice);
+}
+
+async function confirmGenerateInvoice(event) {
+    const button = event.currentTarget;
+    const repairId = button.dataset.confirmInvoice;
+    const originalText = button.textContent;
+
+    button.disabled = true;
+    button.textContent = "Генериране...";
+
+    try {
+        const result = await api(`/invoice/${repairId}`);
+        modalRoot.innerHTML = "";
+        window.open(`${API_URL}/${result.file}`, "_blank");
+        setNotice("Фактурата е генерирана.");
+        await refreshInvoiceList();
+        if (typeof refreshCompletedRepairList === "function") {
+            await refreshCompletedRepairList();
+        }
+    } catch (error) {
+        button.disabled = false;
+        button.textContent = originalText;
+        setNotice(error.message, true);
+        if ((error.message || "").includes("вече има фактура") && typeof refreshCompletedRepairList === "function") {
+            modalRoot.innerHTML = "";
+            await refreshCompletedRepairList();
+            await refreshInvoiceList();
+        }
     }
 }
 
@@ -377,13 +500,15 @@ function table(headers, rows) {
     if (!rows.length) return `<p class="empty">Няма записи.</p>`;
 
     return `
-        <table>
-            <thead>
-                <tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr>
-            </thead>
-            <tbody>
-                ${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell == null ? "-" : cell}</td>`).join("")}</tr>`).join("")}
-            </tbody>
-        </table>
+        <div class="table-scroll list-scroll">
+            <table>
+                <thead>
+                    <tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr>
+                </thead>
+                <tbody>
+                    ${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell == null ? "-" : cell}</td>`).join("")}</tr>`).join("")}
+                </tbody>
+            </table>
+        </div>
     `;
 }

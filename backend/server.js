@@ -11,12 +11,19 @@ const repairRoutes = require("./routes/repairRoutes");
 const statsRoutes = require("./routes/statsRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
 const appointmentRoutes = require("./routes/appointmentRoutes");
+const backupRoutes = require("./routes/backupRoutes");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use("/invoices", express.static(path.join(__dirname, "invoices")));
+app.get("/invoices/:fileName", (req, res, next) => {
+    if (!req.params.fileName.endsWith(".pdf")) {
+        return next();
+    }
+
+    res.sendFile(path.join(__dirname, "invoices", path.basename(req.params.fileName)));
+});
 app.use(express.static(path.join(__dirname, "..", "frontend")));
 
 app.get("/", (req, res) => {
@@ -30,6 +37,7 @@ app.use(repairRoutes);
 app.use(statsRoutes);
 app.use(invoiceRoutes);
 app.use(appointmentRoutes);
+app.use(backupRoutes);
 
 const PORT = process.env.PORT || 3000;
 

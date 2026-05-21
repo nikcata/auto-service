@@ -20,7 +20,7 @@ router.get("/stats", verifyToken, (req, res) => {
 
         stats.total_customers = r1[0].total_customers;
 
-        db.query("SELECT COUNT(*) AS total_repairs FROM repairs WHERE status = 'completed'", (err, r2) => {
+        db.query("SELECT COUNT(*) AS total_repairs FROM repairs WHERE status = 'completed' AND archived_at IS NULL", (err, r2) => {
             if (err) return res.status(500).json({ error: "DB error" });
 
             stats.total_repairs = r2[0].total_repairs;
@@ -36,7 +36,23 @@ router.get("/stats", verifyToken, (req, res) => {
 
                 stats.total_income = r3[0].total_income || 0;
 
-                res.json(stats);
+                const mechanicIncomeSql = `
+                    SELECT
+                        COALESCE(NULLIF(TRIM(mechanic_name), ''), 'Без майстор') AS mechanic_name,
+                        COUNT(*) AS repair_count,
+                        SUM(total_price) AS total_income
+                    FROM repairs
+                    WHERE status = 'completed' AND ${incomePeriods[incomePeriod]}
+                    GROUP BY COALESCE(NULLIF(TRIM(mechanic_name), ''), 'Без майстор')
+                    ORDER BY total_income DESC, repair_count DESC, mechanic_name ASC
+                `;
+
+                db.query(mechanicIncomeSql, (mechanicErr, mechanicRows) => {
+                    if (mechanicErr) return res.status(500).json({ error: "DB error" });
+
+                    stats.mechanic_income = mechanicRows;
+                    res.json(stats);
+                });
             });
         });
     });

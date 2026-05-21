@@ -82,6 +82,32 @@ router.get("/invoices", verifyToken, (req, res) => {
         JOIN repairs ON invoices.repair_id = repairs.id
         JOIN cars ON repairs.car_id = cars.id
         JOIN customers ON cars.customer_id = customers.id
+        WHERE invoices.status <> 'cancelled'
+        ORDER BY invoices.id DESC
+    `;
+
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+
+        res.json(results);
+    });
+});
+
+router.get("/invoices/archive", verifyToken, requireAdmin, (req, res) => {
+    const sql = `
+        SELECT
+            invoices.*,
+            repairs.repair_date,
+            repairs.mechanic_name,
+            customers.full_name AS customer_name,
+            cars.brand,
+            cars.model,
+            cars.registration_number
+        FROM invoices
+        JOIN repairs ON invoices.repair_id = repairs.id
+        JOIN cars ON repairs.car_id = cars.id
+        JOIN customers ON cars.customer_id = customers.id
+        WHERE invoices.status = 'cancelled'
         ORDER BY invoices.id DESC
     `;
 
@@ -120,32 +146,29 @@ router.get("/invoices/:id", verifyToken, (req, res) => {
     });
 });
 
-router.delete("/invoices/:id", verifyToken, requireAdmin, (req, res) => {
-    db.query("SELECT pdf_path FROM invoices WHERE id = ?", [req.params.id], (selectErr, invoices) => {
+router.patch("/invoices/:id/cancel", verifyToken, requireAdmin, (req, res) => {
+    db.query("SELECT status FROM invoices WHERE id = ?", [req.params.id], (selectErr, invoices) => {
         if (selectErr) return res.status(500).json({ error: "Database error" });
         if (invoices.length === 0) return res.status(404).json({ error: "Invoice not found" });
 
-        const pdfPath = invoices[0].pdf_path;
+        if (invoices[0].status === "cancelled") {
+            return res.json({ message: "Invoice is already cancelled" });
+        }
 
-        db.query("DELETE FROM invoices WHERE id = ?", [req.params.id], (deleteErr) => {
-            if (deleteErr) return res.status(500).json({ error: "Database error" });
+        db.query("UPDATE invoices SET status = 'cancelled' WHERE id = ?", [req.params.id], (updateErr) => {
+            if (updateErr) return res.status(500).json({ error: "Database error" });
 
-            if (pdfPath) {
-                const filePath = path.join(invoicesDir, path.basename(pdfPath));
-
-                fs.unlink(filePath, (fileErr) => {
-                    if (fileErr && fileErr.code !== "ENOENT") {
-                        return res.json({ message: "Invoice deleted, but PDF file was not removed" });
-                    }
-
-                    res.json({ message: "Invoice deleted successfully!" });
-                });
-
-                return;
-            }
-
-            res.json({ message: "Invoice deleted successfully!" });
+            res.json({ message: "Invoice cancelled successfully!" });
         });
+    });
+});
+
+router.delete("/invoices/:id", verifyToken, requireAdmin, (req, res) => {
+    db.query("UPDATE invoices SET status = 'cancelled' WHERE id = ?", [req.params.id], (err, result) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        if (result.affectedRows === 0) return res.status(404).json({ error: "Invoice not found" });
+
+        res.json({ message: "Invoice cancelled successfully!" });
     });
 });
 
@@ -168,6 +191,9 @@ router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
             cars.model,
             cars.registration_number,
             cars.vin,
+            cars.year,
+            cars.engine,
+            cars.mileage,
             repair_parts.part_name,
             repair_parts.brand AS part_brand,
             repair_parts.quantity,
@@ -198,12 +224,17 @@ router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
 
         stream.on("finish", () => {
             const invoiceSql = `
-                INSERT INTO invoices (repair_id, invoice_number, issue_date, total_amount, pdf_path)
-                VALUES (?, ?, CURDATE(), ?, ?)
+                INSERT INTO invoices (repair_id, invoice_number, issue_date, total_amount, pdf_path, status)
+                VALUES (?, ?, CURDATE(), ?, ?, 'issued')
             `;
 
             db.query(invoiceSql, [repairId, invoiceNumber, invoiceTotal, pdfPath], (invoiceErr, invoiceResult) => {
                 if (invoiceErr) {
+                    if (invoiceErr.code === "ER_DUP_ENTRY") {
+                        fs.unlink(filePath, () => {});
+                        return res.status(409).json({ error: "За този ремонт вече има фактура" });
+                    }
+
                     return res.status(500).json({ error: "Invoice PDF generated, but database save failed" });
                 }
 
@@ -259,7 +290,7 @@ router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
             .text(`${labels.name}: ${data.full_name}`, 65, 155)
             .text(`${labels.phone}: ${data.phone || "-"}`, 65, 175);
 
-        doc.roundedRect(50, 240, 500, 100, 8).stroke();
+        doc.roundedRect(50, 240, 500, 120, 8).stroke();
 
         doc.font(boldFont)
             .fontSize(12)
@@ -269,18 +300,21 @@ router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
             .fontSize(10)
             .text(`${labels.car}: ${data.brand} ${data.model}`, 65, 280)
             .text(`${labels.registration}: ${data.registration_number || "-"}`, 65, 300)
-            .text(`VIN: ${data.vin || "-"}`, 300, 300);
+            .text("VIN: " + (data.vin || "-"), 300, 300)
+            .text("Година: " + (data.year || "-"), 65, 320)
+            .text("Двигател: " + (data.engine || "-"), 300, 320)
+            .text("Километри: " + (data.mileage || "-"), 65, 340);
 
         doc.font(boldFont)
             .fontSize(12)
-            .text(labels.repairDescription, 50, 370);
+            .text(labels.repairDescription, 50, 390);
 
         doc.font(regularFont)
             .fontSize(10)
-            .text(`${labels.mechanic}: ${data.mechanic_name || "-"}`, 50, 395)
-            .text(data.description || "-", 50, 415, { width: 500 });
+            .text(labels.mechanic + ": " + (data.mechanic_name || "-"), 50, 415)
+            .text(data.description || "-", 50, 435, { width: 500 });
 
-        let y = 455;
+        let y = 475;
 
         doc.rect(50, y, 500, 25).fill("#e5e7eb");
 

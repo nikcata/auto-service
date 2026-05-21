@@ -6,6 +6,7 @@ async function renderDashboard(view) {
     const periodOptions = Object.entries(incomePeriodLabels)
         .map(([value, label]) => `<option value="${value}" ${state.incomePeriod === value ? "selected" : ""}>${label}</option>`)
         .join("");
+    const mechanicIncome = Array.isArray(stats.mechanic_income) ? stats.mechanic_income : [];
     const incomeCard = isAdmin()
         ? `
             <div class="card stat stat-button income-card" data-toggle-income>
@@ -41,6 +42,26 @@ async function renderDashboard(view) {
                 <div class="card stat"><span>Ремонти</span><strong>${stats.total_repairs}</strong></div>
                 ${incomeCard}
             </div>
+            ${isAdmin() ? `
+                <div class="card mechanic-income-card">
+                    <div class="dashboard-card-head">
+                        <div>
+                            <h3>Приходи по майстор</h3>
+                            <p>${incomePeriodLabels[state.incomePeriod]}</p>
+                        </div>
+                    </div>
+                    ${mechanicIncomeTable(mechanicIncome)}
+                </div>
+                <div class="card backup-card">
+                    <div class="dashboard-card-head">
+                        <div>
+                            <h3>Backup на базата</h3>
+                            <p>Свали SQL файл с всички текущи данни</p>
+                        </div>
+                        <button class="secondary" data-download-backup type="button">Свали backup</button>
+                    </div>
+                </div>
+            ` : ""}
             <div class="card">
                 <div data-dashboard-calendar>
                     ${dashboardCalendar(appointments)}
@@ -65,9 +86,69 @@ async function renderDashboard(view) {
             value.textContent = isHidden ? value.dataset.visibleValue : value.dataset.hiddenValue;
             document.querySelector("[data-toggle-income] small").textContent = isHidden ? "Натисни за скриване" : "Натисни за показване";
         });
+
+        document.querySelector("[data-download-backup]").addEventListener("click", downloadDatabaseBackup);
     }
 
     bindDashboardCalendarActions(appointments);
+}
+
+async function downloadDatabaseBackup(event) {
+    const button = event.currentTarget;
+    const originalText = button.textContent;
+
+    button.disabled = true;
+    button.textContent = "Сваляне...";
+
+    try {
+        const response = await fetch(API_URL + "/backup/database", {
+            headers: {
+                Authorization: "Bearer " + state.token
+            }
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            let message = "Backup failed";
+            try {
+                message = JSON.parse(text).error || message;
+            } catch (error) {
+                message = text || message;
+            }
+            throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const fileName = disposition.match(/filename="?([^";]+)"?/)?.[1] || "auto_service_backup.sql";
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        setNotice("Backup файлът е свален.");
+    } catch (error) {
+        setNotice(error.message || "Неуспешен backup", true);
+    } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+}
+
+function mechanicIncomeTable(rows) {
+    if (!rows.length) {
+        return `<p class="muted">Няма приходи за избрания период.</p>`;
+    }
+
+    return table(["Майстор", "Ремонти", "Приход"], rows.map((row) => [
+        row.mechanic_name || "Без майстор",
+        row.repair_count || 0,
+        money(row.total_income)
+    ]));
 }
 
 function dashboardCalendar(appointments) {
@@ -156,7 +237,7 @@ function dashboardCalendarAppointment(appointment) {
 
     return `
         <button class="dashboard-calendar-appointment appointment-${escapeHtml(status)}" data-dashboard-appointment="${appointment.id}" type="button">
-            <span>${escapeHtml(time)} · ${escapeHtml(appointment.customer_name || "-")}</span>
+            <span>${escapeHtml(time)} · ${shortText(appointment.customer_name || "-", 24)}</span>
             <small>${escapeHtml(statusText)}</small>
         </button>
     `;

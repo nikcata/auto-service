@@ -1,12 +1,12 @@
 const API_URL = "";
 
 const state = {
-    view: localStorage.getItem("currentView") || "dashboard",
+    view: sessionStorage.getItem("currentView") || "dashboard",
     incomePeriod: localStorage.getItem("incomePeriod") || "month",
     dashboardMonth: localStorage.getItem("dashboardMonth") || "",
-    selectedRepairId: localStorage.getItem("selectedRepairId") || "",
-    user: JSON.parse(localStorage.getItem("user") || "null"),
-    token: localStorage.getItem("token"),
+    selectedRepairId: sessionStorage.getItem("selectedRepairId") || "",
+    user: JSON.parse(sessionStorage.getItem("user") || "null"),
+    token: sessionStorage.getItem("token"),
     data: {}
 };
 
@@ -32,6 +32,32 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function shortText(value, maxLength = 28) {
+    const text = String(value ?? "").trim();
+    if (!text) return "-";
+
+    if (text.length <= maxLength) {
+        return escapeHtml(text);
+    }
+
+    const shortened = text.slice(0, maxLength).trimEnd() + "...";
+    return "<span class=\"truncate-text\" title=\"" + escapeHtml(text) + "\">" + escapeHtml(shortened) + "</span>";
+}
+
+function twoLineName(value, firstMaxLength = 12, lastMaxLength = 12) {
+    const text = String(value ?? "").trim();
+    if (!text) return "-";
+
+    const parts = text.split(/\s+/);
+    const firstName = parts.shift() || "";
+    const lastName = parts.join(" ");
+    const title = escapeHtml(text);
+    const first = shortText(firstName, firstMaxLength);
+    const last = lastName ? shortText(lastName, lastMaxLength) : "";
+
+    return `<span class="two-line-name" title="${title}"><span>${first}</span>${last ? `<span>${last}</span>` : ""}</span>`;
 }
 
 function money(value) {
@@ -139,6 +165,107 @@ function validateFormValues(values) {
     if (values.vin && !VIN_PATTERN.test(values.vin)) {
         throw new Error(VIN_ERROR_MESSAGE);
     }
+}
+
+function formDraftKey(form) {
+    return `formDraft:${state.user?.id || "guest"}:${form.dataset.draftKey}`;
+}
+
+function formDraftValues(form) {
+    const values = {};
+    form.querySelectorAll("input[name], select[name], textarea[name]").forEach((field) => {
+        if (field.type === "password" || field.type === "hidden") return;
+        if ((field.type === "checkbox" || field.type === "radio") && !field.checked) return;
+
+        values[field.name] = field.value;
+    });
+
+    return values;
+}
+
+function saveFormDraft(form) {
+    if (!form?.dataset?.draftKey) return;
+
+    localStorage.setItem(formDraftKey(form), JSON.stringify(formDraftValues(form)));
+}
+
+function restoreFormDraft(form) {
+    if (!form?.dataset?.draftKey) return;
+
+    const raw = localStorage.getItem(formDraftKey(form));
+    if (!raw) return;
+
+    let values = {};
+    try {
+        values = JSON.parse(raw);
+    } catch (error) {
+        localStorage.removeItem(formDraftKey(form));
+        return;
+    }
+
+    Object.entries(values).forEach(([name, value]) => {
+        const fields = form.querySelectorAll(`[name="${CSS.escape(name)}"]`);
+        fields.forEach((field) => {
+            if (field.type === "password" || field.type === "hidden") return;
+            if (field.type === "checkbox" || field.type === "radio") {
+                field.checked = String(field.value) === String(value);
+                return;
+            }
+
+            field.value = value;
+        });
+    });
+}
+
+function clearFormDraft(form) {
+    if (!form?.dataset?.draftKey) return;
+
+    localStorage.removeItem(formDraftKey(form));
+}
+
+function clearStoredFormDrafts() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("currentView");
+    localStorage.removeItem("selectedRepairId");
+
+    Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("formDraft:")) {
+            localStorage.removeItem(key);
+        }
+    });
+
+    sessionStorage.removeItem("selectedRepairId");
+    state.selectedRepairId = "";
+}
+
+function bindFormDrafts(scope = document) {
+    scope.querySelectorAll("form[data-draft-key]").forEach((form) => {
+        restoreFormDraft(form);
+        form.addEventListener("input", () => saveFormDraft(form));
+        form.addEventListener("change", () => saveFormDraft(form));
+    });
+}
+
+function todayInputDate() {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `--`;
+}
+
+function bindRegistrationInputs(scope = document) {
+    scope.querySelectorAll("[data-registration-input]").forEach((input) => {
+        input.addEventListener("input", () => {
+            input.value = input.value
+                .toUpperCase()
+                .replace(/[^A-ZА-Я0-9\s-]/g, "")
+                .replace(/\s+/g, " ")
+                .slice(0, 20);
+        });
+    });
 }
 
 function bindVinInputs(scope = document) {

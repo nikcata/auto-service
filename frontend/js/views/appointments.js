@@ -1,15 +1,23 @@
 async function renderAppointments(view) {
     const [customers, cars, appointments] = await Promise.all([api("/customers"), api("/cars"), api("/appointments")]);
+    const sortedCustomers = [...customers].sort((a, b) => String(a.full_name || "").localeCompare(String(b.full_name || ""), "bg", { sensitivity: "base" }));
+    const sortedCars = [...cars].sort((a, b) => {
+        const carA = `${a.brand || ""} ${a.model || ""} ${a.registration_number || ""}`;
+        const carB = `${b.brand || ""} ${b.model || ""} ${b.registration_number || ""}`;
+
+        return carA.localeCompare(carB, "bg", { sensitivity: "base" });
+    });
+
     view.innerHTML = `
         <div class="section">
             <div class="card">
                 <h3>Нов час</h3>
-                <form class="form" data-appointment-form>
-                    <label>Клиент<select name="customer_id" required>${options(customers, "id", "full_name")}</select></label>
-                    <label>Автомобил<select name="car_id" required>${options(cars, "id", (c) => `${c.registration_number || "-"} - ${c.brand} ${c.model}`)}</select></label>
+                <form class="form" data-appointment-form data-draft-key="appointments:new">
+                    <label>Клиент<select name="customer_id" required>${options(sortedCustomers, "id", (customer) => `${customer.full_name} - ${customer.phone || "без телефон"}`)}</select></label>
+                    <label>Автомобил<select name="car_id" required>${options(sortedCars, "id", (c) => `${c.brand} ${c.model} - ${c.registration_number || "-"}`)}</select></label>
                     <div class="form-row">
-                        <label>Дата<input name="appointment_date_day" type="date" required></label>
-                        <label>Час<input name="appointment_date_time" type="time" required></label>
+                        <label>Дата<input name="appointment_date_day" type="date" min="${todayInputDate()}" required></label>
+                        <label>Час<input name="appointment_date_time" type="time" step="1800" required></label>
                     </div>
                     <label>Причина<textarea name="reason"></textarea></label>
                     <button class="primary">Запази</button>
@@ -57,7 +65,7 @@ function appointmentTable(appointments) {
     if (!appointments.length) return `<p class="empty">Няма записи.</p>`;
 
     return `
-        <div class="table-scroll">
+        <div class="table-scroll list-scroll">
             <table class="appointment-table">
                 <thead>
                     <tr>
@@ -73,10 +81,10 @@ function appointmentTable(appointments) {
                     ${appointments.map((a) => `
                         <tr>
                             <td>${new Date(a.appointment_date).toLocaleString("bg-BG")}</td>
-                            <td>${twoLineName(a.customer_name)}</td>
-                            <td>${escapeHtml(`${a.brand} ${a.model}`)}<br><span class="muted">${escapeHtml(a.registration_number || "-")}</span></td>
+                            <td>${appointmentCustomerName(a.customer_name)}</td>
+                            <td>${shortText(`${a.brand} ${a.model}`, 24)}<br><span class="muted">${shortText(a.registration_number || "-", 14)}</span></td>
                             <td>
-                                <button class="appointment-reason" data-appointment-reason="${a.id}" type="button">${escapeHtml(a.reason || "-")}</button>
+                                <button class="appointment-reason" data-appointment-reason="${a.id}" type="button" title="${escapeHtml(a.reason || "-")}">${escapeHtml(a.reason || "-")}</button>
                             </td>
                             <td>
                                 <select class="status-select" data-appointment-status="${a.id}">
@@ -99,11 +107,16 @@ function appointmentTable(appointments) {
     `;
 }
 
-function twoLineName(name) {
-    const parts = String(name || "-").trim().split(/\s+/);
-    if (parts.length <= 1) return escapeHtml(parts[0] || "-");
+function appointmentCustomerName(name) {
+    const parts = String(name || "-").trim().split(/\s+/).filter(Boolean);
+    const firstName = parts[0] || "-";
+    const lastName = parts.slice(1).join(" ");
+    const lastLine = lastName ? "<span>" + escapeHtml(lastName) + "</span>" : "";
 
-    return `${escapeHtml(parts[0])}<br>${escapeHtml(parts.slice(1).join(" "))}`;
+    return '<span class="appointment-customer-name" title="' + escapeHtml(name || "-") + '">' +
+        '<span>' + escapeHtml(firstName) + '</span>' +
+        lastLine +
+        '</span>';
 }
 
 function bindAppointmentActions(appointments = []) {

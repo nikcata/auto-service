@@ -64,7 +64,7 @@ router.post("/login", (req, res) => {
         return res.status(400).json({ error: "Username and password are required" });
     }
 
-    const sql = "SELECT * FROM users WHERE username = ?";
+    const sql = "SELECT * FROM users WHERE BINARY username = ?";
 
     db.query(sql, [username], async (err, results) => {
         if (err) {
@@ -115,6 +115,28 @@ router.get("/users", verifyToken, requireAdmin, (req, res) => {
 
 router.post("/users", verifyToken, requireAdmin, createUser);
 router.post("/register", verifyToken, requireAdmin, createUser);
+router.patch("/users/:id/password", verifyToken, requireAdmin, async (req, res) => {
+    const userId = Number(req.params.id);
+    const { password } = req.body;
+
+    if (!password || String(password).length < 4) {
+        return res.status(400).json({ error: "Password must be at least 4 characters" });
+    }
+
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        db.query("UPDATE users SET password = ? WHERE id = ?", [hashedPassword, userId], (err, result) => {
+            if (err) return res.status(500).json({ error: "Database error" });
+            if (result.affectedRows === 0) return res.status(404).json({ error: "User not found" });
+
+            res.json({ message: "Password updated successfully!" });
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Error hashing password" });
+    }
+});
+
 
 router.delete("/users/:id", verifyToken, requireAdmin, (req, res) => {
     const userId = Number(req.params.id);

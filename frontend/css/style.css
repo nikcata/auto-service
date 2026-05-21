@@ -238,6 +238,27 @@ button {
     color: var(--muted);
 }
 
+.dashboard-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.dashboard-card-head h3 {
+    margin: 0;
+}
+
+.dashboard-card-head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+}
+
+.mechanic-income-card table {
+    min-width: 520px;
+}
+
 .form {
     display: grid;
     gap: 12px;
@@ -264,6 +285,12 @@ textarea {
     padding: 10px 11px;
     background: #ffffff;
     color: var(--text);
+}
+
+input,
+select {
+    height: 44px;
+    line-height: 22px;
 }
 
 textarea {
@@ -302,9 +329,49 @@ table thead th,
     color: var(--muted);
 }
 
+
+.two-line-name {
+    display: inline-flex;
+    flex-direction: column;
+    max-width: 100%;
+    line-height: 1.12;
+    vertical-align: middle;
+}
+
+.two-line-name span {
+    display: block;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.truncate-text {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
 .table-scroll {
     width: 100%;
     overflow-x: auto;
+}
+
+.list-scroll {
+    max-height: 690px;
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.table-scroll thead th,
+.list-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 
 .appointment-table {
@@ -340,6 +407,20 @@ table thead th,
 .appointment-table th:nth-child(4),
 .appointment-table td:nth-child(4) {
     width: auto;
+}
+
+.appointment-customer-name {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.appointment-customer-name span {
+    display: block;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .appointment-reason {
@@ -384,6 +465,74 @@ table thead th,
     justify-content: center;
 }
 
+
+.customer-table table {
+    table-layout: fixed;
+}
+
+.customer-table table th:nth-child(1),
+.customer-table table td:nth-child(1) {
+    width: 6%;
+}
+
+.customer-table table th:nth-child(2),
+.customer-table table td:nth-child(2) {
+    width: 28%;
+}
+
+.customer-table table th:nth-child(3),
+.customer-table table td:nth-child(3) {
+    width: 22%;
+}
+
+.customer-table table th:nth-child(4),
+.customer-table table td:nth-child(4) {
+    width: 44%;
+}
+
+.customer-table .actions,
+.car-table .actions {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+
+.customer-table th,
+.customer-table td {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+.customer-table .actions {
+    gap: 5px;
+}
+
+
+.customer-table table th:nth-child(4),
+.customer-table table td:nth-child(4) {
+    text-align: center !important;
+}
+
+.customer-table table td:nth-child(2) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.customer-table .actions {
+    justify-content: center;
+}
+
+.customer-table .small {
+    padding: 6px 7px;
+    font-size: 13px;
+}
+
+.customer-table .small,
+.car-table .small {
+    white-space: nowrap;
+}
+
 .car-table table thead th {
     text-align: center !important;
 }
@@ -409,31 +558,37 @@ table thead th,
 
 .car-table table th:nth-child(2),
 .car-table table td:nth-child(2) {
-    width: 20%;
+    width: 15%;
 }
 
 .car-table table th:nth-child(3),
 .car-table table td:nth-child(3) {
-    width: 25%;
+    width: 18%;
 }
 
 .car-table table th:nth-child(4),
 .car-table table td:nth-child(4) {
-    width: 16%;
+    width: 12%;
 }
 
 .car-table table th:nth-child(5),
 .car-table table td:nth-child(5) {
-    width: 20%;
+    width: 14%;
 }
 
 .car-table table th:nth-child(6),
 .car-table table td:nth-child(6) {
-    width: 14%;
+    width: 36%;
 }
 
 .car-table .actions {
     justify-content: center;
+    flex-wrap: nowrap;
+}
+
+.car-appointment-button.saved {
+    background: #dcfae6;
+    color: #067647;
 }
 
 .car-table table td:nth-child(6) {
@@ -441,9 +596,30 @@ table thead th,
     padding-right: 0;
 }
 
+.mechanic-car-table table th:nth-child(2),
+.mechanic-car-table table td:nth-child(2) {
+    width: 17%;
+}
+
+.mechanic-car-table table th:nth-child(3),
+.mechanic-car-table table td:nth-child(3) {
+    width: 20%;
+}
+
+.mechanic-car-table table th:nth-child(5),
+.mechanic-car-table table td:nth-child(5) {
+    width: 24%;
+}
+
+.mechanic-car-table table th:nth-child(6),
+.mechanic-car-table table td:nth-child(6) {
+    width: 22%;
+}
+
 .invoice-table {
     table-layout: fixed;
-    min-width: 880px;
+    width: 100%;
+    min-width: 0;
 }
 
 .invoice-table th,
@@ -458,18 +634,18 @@ table thead th,
 
 .invoice-table th:first-child,
 .invoice-table td:first-child {
-    width: 32%;
+    width: 24%;
     text-align: left;
 }
 
 .invoice-table th:nth-child(2),
 .invoice-table td:nth-child(2) {
-    width: 22%;
+    width: 19%;
 }
 
 .invoice-table th:nth-child(3),
 .invoice-table td:nth-child(3) {
-    width: 20%;
+    width: 18%;
 }
 
 .invoice-table th:nth-child(4),
@@ -479,21 +655,53 @@ table thead th,
 
 .invoice-table th:nth-child(5),
 .invoice-table td:nth-child(5) {
-    width: 14%;
+    width: 11%;
+}
+
+.invoice-table th:nth-child(6),
+.invoice-table td:nth-child(6) {
+    width: 16%;
 }
 
 .invoice-table .actions {
     justify-content: center;
     flex-wrap: nowrap;
+    gap: 6px;
+}
+
+.invoice-table .small {
+    padding: 6px 8px;
 }
 
 .invoice-table th:nth-child(5),
-.invoice-table td:nth-child(5) {
+.invoice-table td:nth-child(5),
+.invoice-table th:nth-child(6),
+.invoice-table td:nth-child(6) {
     text-align: center;
 }
 
-.invoice-table thead th:nth-child(5) {
+.invoice-table thead th:nth-child(5),
+.invoice-table thead th:nth-child(6) {
     text-align: center !important;
+}
+
+.invoice-status {
+    display: inline-flex;
+    width: fit-content;
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.invoice-status.status-issued {
+    background: #dcfae6;
+    color: #067647;
+}
+
+.invoice-status.status-cancelled {
+    background: #fee4e2;
+    color: var(--danger);
 }
 
 .dashboard-calendar {
@@ -765,6 +973,153 @@ table thead th,
     white-space: pre-wrap;
 }
 
+.invoice-preview-modal {
+    width: min(760px, 100%);
+}
+
+.invoice-preview-body {
+    display: grid;
+    gap: 16px;
+}
+
+.invoice-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 18px;
+}
+
+.invoice-preview-grid p,
+.invoice-preview-description p {
+    margin: 0;
+}
+
+.invoice-preview-description {
+    display: grid;
+    gap: 8px;
+}
+
+.invoice-preview-description p {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #f8fafc;
+    padding: 10px;
+}
+
+.invoice-preview-parts h4 {
+    margin: 0 0 8px;
+}
+
+.invoice-preview-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+}
+
+.invoice-preview-total span {
+    color: var(--muted);
+}
+
+.invoice-preview-total strong {
+    font-size: 22px;
+}
+
+.invoice-preview-actions {
+    justify-content: flex-end;
+}
+
+
+.repair-table table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.repair-table th,
+.repair-table td {
+    overflow: hidden;
+    vertical-align: middle;
+}
+
+.repair-table th:nth-child(1),
+.repair-table td:nth-child(1) {
+    width: 4%;
+}
+
+.repair-table th:nth-child(2),
+.repair-table td:nth-child(2) {
+    width: 11%;
+}
+
+.repair-table th:nth-child(3),
+.repair-table td:nth-child(3) {
+    width: 15%;
+}
+
+.repair-table th:nth-child(4),
+.repair-table td:nth-child(4) {
+    width: 11%;
+    white-space: nowrap;
+}
+
+.repair-table th:nth-child(5),
+.repair-table td:nth-child(5) {
+    width: 8%;
+}
+
+.repair-table th:nth-child(6),
+.repair-table td:nth-child(6) {
+    width: 9%;
+    white-space: nowrap;
+}
+
+.repair-table th:last-child,
+.repair-table td:last-child {
+    width: 42%;
+}
+
+.archive-repair-list th:nth-child(1),
+.archive-repair-list td:nth-child(1) {
+    width: 5%;
+}
+
+.archive-repair-list th:nth-child(2),
+.archive-repair-list td:nth-child(2) {
+    width: 13%;
+}
+
+.archive-repair-list th:nth-child(3),
+.archive-repair-list td:nth-child(3) {
+    width: 16%;
+}
+
+.archive-repair-list th:nth-child(4),
+.archive-repair-list td:nth-child(4) {
+    width: 11%;
+}
+
+.archive-repair-list th:nth-child(5),
+.archive-repair-list td:nth-child(5) {
+    width: 10%;
+}
+
+.archive-repair-list th:nth-child(6),
+.archive-repair-list td:nth-child(6) {
+    width: 10%;
+}
+
+.archive-repair-list th:nth-child(7),
+.archive-repair-list td:nth-child(7) {
+    width: 13%;
+    white-space: nowrap;
+}
+
+.archive-repair-list th:last-child,
+.archive-repair-list td:last-child {
+    width: 22%;
+}
+
 .repair-table th:last-child,
 .repair-table td:last-child {
     text-align: center;
@@ -774,8 +1129,70 @@ table thead th,
     text-align: center !important;
 }
 
+.mechanic-repair-table th:nth-child(2),
+.mechanic-repair-table td:nth-child(2) {
+    width: 17%;
+}
+
+.mechanic-repair-table th:nth-child(3),
+.mechanic-repair-table td:nth-child(3) {
+    width: 22%;
+}
+
+.mechanic-repair-table th:nth-child(4),
+.mechanic-repair-table td:nth-child(4) {
+    width: 12%;
+}
+
+.mechanic-repair-table th:nth-child(5),
+.mechanic-repair-table td:nth-child(5) {
+    width: 10%;
+}
+
+.mechanic-repair-table th:nth-child(6),
+.mechanic-repair-table td:nth-child(6) {
+    width: 10%;
+}
+
+.mechanic-repair-table th:last-child,
+.mechanic-repair-table td:last-child {
+    width: 25%;
+}
+
 .repair-table .actions {
     justify-content: center;
+    flex-wrap: nowrap;
+}
+
+
+.admin-repair-table .actions {
+    display: grid;
+    grid-template-columns: 72px 96px 130px 104px;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+}
+
+.admin-repair-table .actions .small {
+    width: 100%;
+}
+
+.admin-repair-table .action-note {
+    display: block;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.mechanic-repair-table .actions {
+    display: grid;
+    grid-template-columns: 82px 108px;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.mechanic-repair-table .actions .small {
+    width: 100%;
 }
 
 .part-table th:last-child,
@@ -808,6 +1225,16 @@ table thead th,
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+
+.user-table th:last-child {
+    text-align: left !important;
+    padding-left: 32px;
+}
+
+.user-actions {
+    justify-content: flex-start;
 }
 
 .small {
@@ -873,9 +1300,26 @@ table thead th,
     text-align: right;
 }
 
+.open-repair-toolbar {
+    display: flex;
+    justify-content: center;
+}
+
+.open-repair-delete-button {
+    width: auto;
+    min-width: 220px;
+    padding: 8px 12px;
+}
+
+
+.finish-repair-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+}
+
 .finish-repair-button {
-    margin-top: 12px;
-    width: 100%;
+    min-width: 160px;
 }
 
 .section {
@@ -903,6 +1347,11 @@ table thead th,
 .car-search {
     grid-template-columns: 1fr;
     margin-bottom: 12px;
+}
+
+.repair-search {
+    grid-template-columns: 1fr;
+    margin-bottom: 14px;
 }
 
 @media (max-width: 900px) {

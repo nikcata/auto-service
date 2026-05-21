@@ -5,8 +5,12 @@ const { verifyToken, requireAdmin } = require("../middleware/authMiddleware");
 const router = express.Router();
 
 function calculateLabor(hoursWorked, pricePerHour) {
-    const hours = Math.max(0, Math.round(Number(hoursWorked || 0)));
+    const hours = Math.round(Number(hoursWorked));
     const hourlyPrice = Number(pricePerHour || 40);
+
+    if (!Number.isFinite(hours) || hours < 1) {
+        return { error: "Трудът трябва да бъде поне 1 час" };
+    }
 
     return {
         hours,
@@ -36,11 +40,40 @@ router.get("/repairs", verifyToken, (req, res) => {
             cars.brand,
             cars.model,
             cars.registration_number,
-            customers.full_name AS customer_name
+            customers.full_name AS customer_name,
+            invoices.id AS invoice_id,
+            invoices.status AS invoice_status
         FROM repairs
         JOIN cars ON repairs.car_id = cars.id
         JOIN customers ON cars.customer_id = customers.id
+        LEFT JOIN invoices ON invoices.repair_id = repairs.id
+        WHERE repairs.archived_at IS NULL
         ORDER BY repairs.repair_date DESC, repairs.created_at DESC
+    `;
+
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+
+        res.json(results);
+    });
+});
+
+router.get("/repairs/archive", verifyToken, requireAdmin, (req, res) => {
+    const sql = `
+        SELECT
+            repairs.*,
+            cars.brand,
+            cars.model,
+            cars.registration_number,
+            customers.full_name AS customer_name,
+            invoices.id AS invoice_id,
+            invoices.status AS invoice_status
+        FROM repairs
+        JOIN cars ON repairs.car_id = cars.id
+        JOIN customers ON cars.customer_id = customers.id
+        LEFT JOIN invoices ON invoices.repair_id = repairs.id
+        WHERE repairs.archived_at IS NOT NULL
+        ORDER BY repairs.archived_at DESC, repairs.repair_date DESC
     `;
 
     db.query(sql, (err, results) => {
@@ -63,6 +96,7 @@ router.get("/repairs/:id", verifyToken, (req, res) => {
         FROM repairs
         JOIN cars ON repairs.car_id = cars.id
         JOIN customers ON cars.customer_id = customers.id
+        LEFT JOIN invoices ON invoices.repair_id = repairs.id
         WHERE repairs.id = ?
     `;
 
@@ -85,7 +119,7 @@ router.get("/cars/:carId/repairs", verifyToken, (req, res) => {
     const sql = `
         SELECT repairs.*
         FROM repairs
-        WHERE car_id = ?
+        WHERE car_id = ? AND archived_at IS NULL
         ORDER BY repair_date DESC, created_at DESC
     `;
 
@@ -116,7 +150,7 @@ router.post("/appointments/:id/start-repair", verifyToken, (req, res) => {
         db.query("SELECT id FROM repairs WHERE appointment_id = ?", [appointment.id], (repairErr, repairs) => {
             if (repairErr) return res.status(500).json({ error: "Database error" });
             if (repairs.length > 0) {
-                return res.status(409).json({ error: "Repair already exists for this appointment" });
+                return res.status(409).json({ error: "Този записан час вече има започнат или завършен ремонт" });
             }
 
             const sql = `
@@ -156,7 +190,13 @@ router.put("/repairs/:id", verifyToken, (req, res) => {
         return res.status(400).json({ error: "Car, repair date and mechanic name are required" });
     }
 
-    const { hours, hourlyPrice, laborPrice } = calculateLabor(hours_worked, price_per_hour);
+    const labor = calculateLabor(hours_worked, price_per_hour);
+
+    if (labor.error) {
+        return res.status(400).json({ error: labor.error });
+    }
+
+    const { hours, hourlyPrice, laborPrice } = labor;
 
     const sql = `
         UPDATE repairs
@@ -209,14 +249,52 @@ router.patch("/repairs/:id/status", verifyToken, (req, res) => {
     });
 });
 
-router.delete("/repairs/:id", verifyToken, requireAdmin, (req, res) => {
-    const sql = "DELETE FROM repairs WHERE id = ?";
+router.patch("/repairs/:id/restore", verifyToken, requireAdmin, (req, res) => {
+    const sql = "UPDATE repairs SET archived_at = NULL, status = 'completed' WHERE id = ? AND archived_at IS NOT NULL";
 
     db.query(sql, [req.params.id], (err, result) => {
         if (err) return res.status(500).json({ error: "Database error" });
-        if (result.affectedRows === 0) return res.status(404).json({ error: "Repair not found" });
+        if (result.affectedRows === 0) return res.status(404).json({ error: "Archived repair not found" });
 
-        res.json({ message: "Repair deleted successfully!" });
+        res.json({ message: "Repair restored successfully!" });
+    });
+});
+
+router.delete("/repairs/:id", verifyToken, (req, res) => {
+    db.query("SELECT status, archived_at FROM repairs WHERE id = ?", [req.params.id], (selectErr, repairs) => {
+        if (selectErr) return res.status(500).json({ error: "Database error" });
+        if (repairs.length === 0) return res.status(404).json({ error: "Repair not found" });
+
+        const repair = repairs[0];
+
+        if (repair.status === "completed") {
+            if (req.user?.role !== "admin") {
+                return res.status(403).json({ error: "Само админ може да архивира завършен ремонт" });
+            }
+
+            if (repair.archived_at) {
+                return res.json({ message: "Repair already archived" });
+            }
+
+            db.query("UPDATE repairs SET archived_at = NOW() WHERE id = ?", [req.params.id], (archiveErr, result) => {
+                if (archiveErr) return res.status(500).json({ error: "Database error" });
+                if (result.affectedRows === 0) return res.status(404).json({ error: "Repair not found" });
+
+                res.json({ message: "Repair archived successfully!" });
+            });
+            return;
+        }
+
+        db.query("DELETE FROM repair_parts WHERE repair_id = ?", [req.params.id], (partsDeleteErr) => {
+            if (partsDeleteErr) return res.status(500).json({ error: "Database error" });
+
+            db.query("DELETE FROM repairs WHERE id = ?", [req.params.id], (err, result) => {
+                if (err) return res.status(500).json({ error: "Database error" });
+                if (result.affectedRows === 0) return res.status(404).json({ error: "Repair not found" });
+
+                res.json({ message: "Repair and parts deleted successfully!" });
+            });
+        });
     });
 });
 

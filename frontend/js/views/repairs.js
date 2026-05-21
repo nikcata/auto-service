@@ -1,13 +1,22 @@
 async function renderRepairs(view) {
     const [repairs, appointments] = await Promise.all([api("/repairs"), api("/appointments")]);
-    const openRepairs = repairs.filter((repair) => repair.status !== "completed");
+    const cancelledAppointmentIds = new Set(
+        appointments
+            .filter((appointment) => appointment.status === "cancelled")
+            .map((appointment) => String(appointment.id))
+    );
+    const openRepairs = repairs.filter((repair) => {
+        return repair.status !== "completed" && !cancelledAppointmentIds.has(String(repair.appointment_id));
+    });
     const completedRepairs = repairs.filter((repair) => repair.status === "completed");
     const repairAppointmentIds = new Set(repairs.map((repair) => String(repair.appointment_id)).filter(Boolean));
     const selectedRepairExists = openRepairs.some((repair) => String(repair.id) === String(state.selectedRepairId));
-    const selectedRepairId = selectedRepairExists ? state.selectedRepairId : openRepairs[0]?.id || "";
+    const selectedRepairId = selectedRepairExists ? state.selectedRepairId : "";
     const selectedRepair = selectedRepairId ? await api(`/repairs/${selectedRepairId}`) : null;
     const availableAppointments = appointments.filter((appointment) => {
-        return appointment.status !== "cancelled" && !repairAppointmentIds.has(String(appointment.id));
+        return appointment.status === "scheduled"
+            && !repairAppointmentIds.has(String(appointment.id))
+            && !Number(appointment.has_repair);
     });
 
     view.innerHTML = `
@@ -15,7 +24,7 @@ async function renderRepairs(view) {
             <div class="card">
                 <h3>Ремонт от календар</h3>
                 ${availableAppointments.length ? `
-                    <form class="form" data-start-repair-form>
+                    <form class="form" data-start-repair-form data-draft-key="repairs:start">
                         <label>Записан час
                             <select name="appointment_id" required>
                                 ${options(availableAppointments, "id", (a) => `${formatDateTime(a.appointment_date)} - ${a.registration_number || "-"} - ${a.brand} ${a.model}`)}
@@ -28,8 +37,11 @@ async function renderRepairs(view) {
             <div class="card">
                 <h3>Добави част</h3>
                 ${openRepairs.length ? `
-                    <form class="form" data-part-form>
-                        <label>Ремонт<select name="repair_id" required>${options(openRepairs, "id", (r) => `#${r.id} - ${r.registration_number || "-"} - ${formatDate(r.repair_date)}`, selectedRepairId)}</select></label>
+                    <form class="form" data-part-form data-draft-key="repairs:part">
+                        <label>Ремонт<select name="repair_id" required><option value="">Избери ремонт</option>${options(openRepairs, "id", (r) => `#${r.id} - ${r.brand || "-"} ${r.model || ""} (${r.registration_number || "-"}) - ${formatDate(r.repair_date)}`, selectedRepairId)}</select></label>
+                        <div class="open-repair-toolbar">
+                            <button class="danger secondary open-repair-delete-button" type="button" data-delete-open-repair="${selectedRepairId}" ${selectedRepairId ? "" : "disabled"}>Премахни започнат ремонт</button>
+                        </div>
                         <div class="form-row">
                             <label>Част<input name="part_name" required></label>
                             <label>Марка<input name="brand"></label>
@@ -48,7 +60,10 @@ async function renderRepairs(view) {
             </div>
             <div class="card">
                 <h3>Завършени ремонти</h3>
-                <div class="repair-table" data-completed-repairs-list>
+                <div class="search-line repair-search">
+                    <input data-completed-repair-search placeholder="Търси по клиент, дата или автомобил">
+                </div>
+                <div class="repair-table completed-repair-table ${isAdmin() ? "admin-repair-table" : "mechanic-repair-table"}" data-completed-repairs-list>
                     ${completedRepairTable(completedRepairs)}
                 </div>
             </div>
@@ -66,7 +81,11 @@ async function renderRepairs(view) {
         const repairSelect = partForm.querySelector("[name='repair_id']");
         repairSelect.addEventListener("change", (event) => {
             state.selectedRepairId = event.target.value;
-            localStorage.setItem("selectedRepairId", state.selectedRepairId);
+            if (state.selectedRepairId) {
+                sessionStorage.setItem("selectedRepairId", state.selectedRepairId);
+            } else {
+                sessionStorage.removeItem("selectedRepairId");
+            }
             loadView();
         });
 
@@ -78,7 +97,34 @@ async function renderRepairs(view) {
     document.querySelectorAll("[data-finish-repair]").forEach((button) => {
         button.addEventListener("click", () => finishRepair(button.dataset.finishRepair));
     });
+    document.querySelectorAll("[data-delete-open-repair]").forEach((button) => {
+        button.addEventListener("click", () => deleteOpenRepair(button.dataset.deleteOpenRepair));
+    });
+    bindCompletedRepairSearch(completedRepairs);
     bindCompletedRepairActions();
+}
+
+function bindCompletedRepairSearch(repairs) {
+    const input = document.querySelector("[data-completed-repair-search]");
+    const list = document.querySelector("[data-completed-repairs-list]");
+    if (!input || !list) return;
+
+    input.addEventListener("input", () => {
+        const query = input.value.trim().toLowerCase();
+        const filteredRepairs = repairs.filter((repair) => {
+            const searchableText = [
+                repair.customer_name,
+                repair.brand,
+                repair.model,
+                formatDate(repair.repair_date)
+            ].join(" ").toLowerCase();
+
+            return searchableText.includes(query);
+        });
+
+        list.innerHTML = completedRepairTable(filteredRepairs);
+        bindCompletedRepairActions();
+    });
 }
 
 function repairLaborForm(repair) {
@@ -93,26 +139,35 @@ function repairLaborForm(repair) {
             <input type="hidden" name="status" value="${escapeHtml(repair.status || "open")}">
             <h4>Труд</h4>
             <div class="form-row">
-                <label>Труд (часове)<input name="hours_worked" type="number" min="0" step="1" value="${escapeHtml(Math.round(Number(repair.hours_worked || 0)))}"></label>
+                <label>Труд (часове)<input name="hours_worked" type="number" min="1" step="1" value="${escapeHtml(Math.max(1, Math.round(Number(repair.hours_worked || 1))))}"></label>
                 <label>Цена на час<input name="price_per_hour" type="number" step="0.01" value="${escapeHtml(repair.price_per_hour || 40)}"></label>
             </div>
         </div>
     `;
 }
 
+function invoiceAction(repair) {
+    if (repair.invoice_id) {
+        const label = repair.invoice_status === "cancelled" ? "Фактура анулирана" : "Фактура издадена";
+        return '<span class="muted action-note">' + escapeHtml(label) + '</span>';
+    }
+
+    return '<button class="secondary small" data-invoice="' + escapeHtml(repair.id) + '">Издай фактура</button>';
+}
+
 function completedRepairTable(repairs) {
     return table(["ID", "Клиент", "Автомобил", "Дата", "Майстор", "Сума", "Действия"], repairs.map((r) => [
         r.id,
-        r.customer_name,
-        `${r.brand} ${r.model}`,
+        isAdmin() ? twoLineName(r.customer_name, 12, 12) : twoLineName(r.customer_name, 18, 18),
+        isAdmin() ? shortText(`${r.brand} ${r.model}`, 20) : shortText(`${r.brand} ${r.model}`, 34),
         formatDate(r.repair_date),
-        r.mechanic_name || "-",
+        shortText(r.mechanic_name || "-", 18),
         money(r.total_price),
         `<div class="actions">
             <button class="secondary small" data-repair-detail="${r.id}">Детайли</button>
             <button class="secondary small" data-repair-edit="${r.id}">Редактирай</button>
-            ${isAdmin() ? `<button class="secondary small" data-invoice="${r.id}">Издай фактура</button>` : ""}
-            ${isAdmin() ? `<button class="danger small" data-delete-repair="${r.id}">Изтрий</button>` : ""}
+            ${isAdmin() ? invoiceAction(r) : ""}
+            ${isAdmin() ? `<button class="danger small" data-archive-repair="${r.id}">Архивирай</button>` : ""}
         </div>`
     ]));
 }
@@ -125,9 +180,26 @@ function bindCompletedRepairActions() {
     document.querySelectorAll("[data-repair-edit]").forEach((button) => {
         button.addEventListener("click", () => renderRepairEdit(button.dataset.repairEdit));
     });
-    document.querySelectorAll("[data-delete-repair]").forEach((button) => {
-        button.addEventListener("click", () => deleteRecord(`/repairs/${button.dataset.deleteRepair}`, "Да изтрия ли този ремонт и всички негови части?"));
+    document.querySelectorAll("[data-archive-repair]").forEach((button) => {
+        button.addEventListener("click", () => archiveCompletedRepair(button.dataset.archiveRepair));
     });
+}
+
+async function archiveCompletedRepair(repairId) {
+    if (!confirm("Да архивирам ли този завършен ремонт? Данните, частите и фактурите ще останат запазени.")) return;
+
+    try {
+        await api(`/repairs/${repairId}`, { method: "DELETE" });
+        const detailBox = document.querySelector("[data-repair-detail-box]");
+        if (detailBox) {
+            detailBox.hidden = true;
+            detailBox.innerHTML = "";
+        }
+        await refreshCompletedRepairList();
+        setNotice("Ремонтът е архивиран.");
+    } catch (error) {
+        setNotice(error.message || "Неуспешно архивиране", true);
+    }
 }
 
 async function refreshCompletedRepairList() {
@@ -137,6 +209,7 @@ async function refreshCompletedRepairList() {
     const repairs = await api("/repairs");
     const completedRepairs = repairs.filter((repair) => repair.status === "completed");
     list.innerHTML = completedRepairTable(completedRepairs);
+    bindCompletedRepairSearch(completedRepairs);
     bindCompletedRepairActions();
 }
 
@@ -149,21 +222,25 @@ function selectedRepairParts(repair) {
     if (!parts.length) {
         return `
             <p class="empty">Още няма добавени части към този ремонт.</p>
-            <button class="secondary" data-finish-repair="${repair.id}">Завърши ремонт</button>
+            <div class="finish-repair-actions">
+                <button class="secondary small finish-repair-button" data-finish-repair="${repair.id}">Завърши ремонт</button>
+            </div>
         `;
     }
 
     return `
         <h4>Добавени части</h4>
         ${table(["Част", "Марка", "Брой", "Ед. цена", "Общо", "Действия"], parts.map((part) => [
-            escapeHtml(part.part_name),
-            escapeHtml(part.brand || "-"),
+            shortText(part.part_name, 28),
+            shortText(part.brand || "-", 22),
             part.quantity,
             money(part.unit_price),
             money(part.total_price),
             `<button class="danger small" data-delete-selected-part="${part.id}">Изтрий</button>`
         ]))}
         <p class="parts-total"><strong>Общо части:</strong> ${money(total)}</p>
-        <button class="primary finish-repair-button" data-finish-repair="${repair.id}">Завърши ремонт</button>
+        <div class="finish-repair-actions">
+            <button class="primary small finish-repair-button" data-finish-repair="${repair.id}">Завърши ремонт</button>
+        </div>
     `;
 }

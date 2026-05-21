@@ -3,8 +3,10 @@ function logout(options = {}) {
         return;
     }
 
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    clearStoredFormDrafts();
+
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
     state.token = null;
     state.user = null;
     render();
@@ -16,9 +18,9 @@ function render() {
         return;
     }
 
-    if (!isAdmin() && state.view === "users") {
+    if (!isAdmin() && ["users", "archive"].includes(state.view)) {
         state.view = "dashboard";
-        localStorage.setItem("currentView", state.view);
+        sessionStorage.setItem("currentView", state.view);
     }
 
     renderLayout();
@@ -67,12 +69,14 @@ async function handleAuth(event) {
             body: JSON.stringify(values)
         });
 
+        clearStoredFormDrafts();
+
         state.token = result.token;
         state.user = result.user;
         state.view = "dashboard";
-        localStorage.setItem("token", result.token);
-        localStorage.setItem("user", JSON.stringify(result.user));
-        localStorage.setItem("currentView", state.view);
+        sessionStorage.setItem("token", result.token);
+        sessionStorage.setItem("user", JSON.stringify(result.user));
+        sessionStorage.setItem("currentView", state.view);
         render();
     } catch (error) {
         setNotice(error.message, true);
@@ -90,6 +94,7 @@ function renderLayout() {
     ];
 
     if (isAdmin()) {
+        items.push(["archive", "Архив"]);
         items.push(["users", "Потребители"]);
     }
 
@@ -117,7 +122,7 @@ function renderLayout() {
     document.querySelectorAll("[data-view]").forEach((button) => {
         button.addEventListener("click", () => {
             state.view = button.dataset.view;
-            localStorage.setItem("currentView", state.view);
+            sessionStorage.setItem("currentView", state.view);
             render();
         });
     });
@@ -148,10 +153,14 @@ async function loadView() {
         } else if (state.view === "invoices") {
             title.textContent = "Фактури";
             await renderInvoices(view);
+        } else if (state.view === "archive") {
+            title.textContent = "Архив";
+            await renderArchive(view);
         } else if (state.view === "users") {
             title.textContent = "Потребители";
             await renderUsers(view);
         }
+        bindFormDrafts(view);
     } catch (error) {
         view.innerHTML = `<div class="card"><p class="empty">${escapeHtml(error.message)}</p></div>`;
     }
