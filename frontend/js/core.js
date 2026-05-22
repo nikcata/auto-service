@@ -184,13 +184,13 @@ function formDraftValues(form) {
 }
 
 function saveFormDraft(form) {
-    if (!form?.dataset?.draftKey) return;
+    if (!form?.dataset?.draftKey || form.dataset.draftPaused === "true" || form.dataset.editId) return;
 
     localStorage.setItem(formDraftKey(form), JSON.stringify(formDraftValues(form)));
 }
 
 function restoreFormDraft(form) {
-    if (!form?.dataset?.draftKey) return;
+    if (!form?.dataset?.draftKey || form.dataset.draftPaused === "true") return;
 
     const raw = localStorage.getItem(formDraftKey(form));
     if (!raw) return;

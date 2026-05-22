@@ -7,7 +7,7 @@ async function renderCars(view) {
         <div class="section">
             <div class="card">
                 <h3 data-car-form-title>Нов автомобил</h3>
-                <form class="form" data-car-form data-draft-key="cars:new">
+                <form class="form" data-car-form data-draft-key="cars:new:v2">
                     <div class="form-row">
                         <label>Клиент<select name="customer_id" required>${options(sortedCustomers, "id", (customer) => `${customer.full_name} - ${customer.phone || "без телефон"}`)}</select></label>
                         <label>Марка<input name="brand" required minlength="2" pattern="[A-Za-zА-Яа-яЁёЀ-ӿ0-9][A-Za-zА-Яа-яЁёЀ-ӿ0-9\\s.'/-]*" title="Букви, цифри, интервал, точка, тире или /"></label>
@@ -131,6 +131,7 @@ async function submitCarForm(event) {
 function resetCarForm(form) {
     form.reset();
     delete form.dataset.editId;
+    delete form.dataset.draftPaused;
     document.querySelector("[data-car-form-title]").textContent = "Нов автомобил";
     document.querySelector("[data-car-submit]").textContent = "Запази";
     document.querySelector("[data-car-cancel]").hidden = true;
@@ -142,6 +143,8 @@ async function editCar(carId) {
 
     try {
         const car = await api(`/cars/${carId}`);
+        clearFormDraft(form);
+        form.dataset.draftPaused = "true";
         form.dataset.editId = carId;
         form.elements.customer_id.value = car.customer_id || "";
         form.elements.brand.value = car.brand || "";

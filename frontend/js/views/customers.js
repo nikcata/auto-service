@@ -4,7 +4,7 @@ async function renderCustomers(view) {
         <div class="grid two">
             <div class="card">
                 <h3 data-customer-form-title>Нов клиент</h3>
-                <form class="form" data-customer-form data-draft-key="customers:new">
+                <form class="form" data-customer-form data-draft-key="customers:new:v2">
                     <label>Име<input name="full_name" required minlength="2" pattern="[A-Za-zА-Яа-яЁёЀ-ӿ]+(?:[\\s'-][A-Za-zА-Яа-яЁёЀ-ӿ]+)*" title="Само букви, интервал, тире или апостроф"></label>
                     <label>Телефон<input name="phone" required inputmode="tel" pattern="(?:\\+359|0)[\\s-]*\\(?[7-9]\\d{2}\\)?[\\s-]*\\d{3}[\\s-]*\\d{3}" title="Например 0888123456 или +359 888 123 456"></label>
                     <div class="actions">
@@ -93,6 +93,7 @@ async function submitCustomerForm(event) {
 function resetCustomerForm(form) {
     form.reset();
     delete form.dataset.editId;
+    delete form.dataset.draftPaused;
     document.querySelector("[data-customer-form-title]").textContent = "Нов клиент";
     document.querySelector("[data-customer-submit]").textContent = "Запази";
     document.querySelector("[data-customer-cancel]").hidden = true;
@@ -104,6 +105,8 @@ async function editCustomer(customerId) {
 
     try {
         const customer = await api(`/customers/${customerId}`);
+        clearFormDraft(form);
+        form.dataset.draftPaused = "true";
         form.dataset.editId = customerId;
         form.elements.full_name.value = customer.full_name || "";
         form.elements.phone.value = customer.phone || "";
