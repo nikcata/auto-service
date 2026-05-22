@@ -5,8 +5,8 @@ async function renderCustomers(view) {
             <div class="card">
                 <h3 data-customer-form-title>Нов клиент</h3>
                 <form class="form" data-customer-form data-draft-key="customers:new">
-                    <label>Име<input name="full_name" required minlength="2" pattern="[A-Za-zА-Яа-яЁёЀ-ӿ]+(?:[\s'-][A-Za-zА-Яа-яЁёЀ-ӿ]+)*" title="Само букви, интервал, тире или апостроф"></label>
-                    <label>Телефон<input name="phone" required inputmode="tel" pattern="(?:\+359|0)[\s-]*\(?[7-9]\d{2}\)?[\s-]*\d{3}[\s-]*\d{3}" title="Например 0888123456 или +359 888 123 456"></label>
+                    <label>Име<input name="full_name" required minlength="2" pattern="[A-Za-zА-Яа-яЁёЀ-ӿ]+(?:[\\s'-][A-Za-zА-Яа-яЁёЀ-ӿ]+)*" title="Само букви, интервал, тире или апостроф"></label>
+                    <label>Телефон<input name="phone" required inputmode="tel" pattern="(?:\\+359|0)[\\s-]*\\(?[7-9]\\d{2}\\)?[\\s-]*\\d{3}[\\s-]*\\d{3}" title="Например 0888123456 или +359 888 123 456"></label>
                     <div class="actions">
                         <button class="primary" data-customer-submit>Запази</button>
                         <button class="secondary" type="button" data-customer-cancel hidden>Отказ</button>
