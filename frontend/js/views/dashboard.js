@@ -52,15 +52,6 @@ async function renderDashboard(view) {
                     </div>
                     ${mechanicIncomeTable(mechanicIncome)}
                 </div>
-                <div class="card backup-card">
-                    <div class="dashboard-card-head">
-                        <div>
-                            <h3>Backup на базата</h3>
-                            <p>Свали SQL файл с всички текущи данни</p>
-                        </div>
-                        <button class="secondary" data-download-backup type="button">Свали backup</button>
-                    </div>
-                </div>
             ` : ""}
             <div class="card">
                 <div data-dashboard-calendar>
@@ -86,8 +77,6 @@ async function renderDashboard(view) {
             value.textContent = isHidden ? value.dataset.visibleValue : value.dataset.hiddenValue;
             document.querySelector("[data-toggle-income] small").textContent = isHidden ? "Натисни за скриване" : "Натисни за показване";
         });
-
-        document.querySelector("[data-download-backup]").addEventListener("click", downloadDatabaseBackup);
     }
 
     bindDashboardCalendarActions(appointments);

@@ -163,15 +163,6 @@ router.patch("/invoices/:id/cancel", verifyToken, requireAdmin, (req, res) => {
     });
 });
 
-router.delete("/invoices/:id", verifyToken, requireAdmin, (req, res) => {
-    db.query("UPDATE invoices SET status = 'cancelled' WHERE id = ?", [req.params.id], (err, result) => {
-        if (err) return res.status(500).json({ error: "Database error" });
-        if (result.affectedRows === 0) return res.status(404).json({ error: "Invoice not found" });
-
-        res.json({ message: "Invoice cancelled successfully!" });
-    });
-});
-
 router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
     const repairId = req.params.repairId;
 

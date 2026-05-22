@@ -6,6 +6,15 @@ async function renderArchive(view) {
 
     view.innerHTML = `
         <div class="section">
+            <div class="card backup-card">
+                <div class="dashboard-card-head">
+                    <div>
+                        <h3>Backup на базата</h3>
+                        <p>Свали SQL файл с всички текущи данни</p>
+                    </div>
+                    <button class="secondary" data-download-backup type="button">Свали backup</button>
+                </div>
+            </div>
             <div class="card">
                 <h3>Архивирани ремонти</h3>
                 <div class="repair-table archive-repair-list table-scroll list-scroll">
@@ -21,6 +30,8 @@ async function renderArchive(view) {
     `;
 
     bindArchiveActions();
+
+    document.querySelector("[data-download-backup]")?.addEventListener("click", downloadDatabaseBackup);
 }
 
 function archiveRepairsTable(repairs) {
