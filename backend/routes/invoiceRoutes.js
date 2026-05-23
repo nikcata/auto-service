@@ -68,6 +68,49 @@ function createInvoiceNumber(repairId) {
     return `INV-${repairId}-${stamp}`;
 }
 
+function escapeIndexName(indexName) {
+    return String(indexName).replace(/`/g, "``");
+}
+
+function ensureInvoiceRepairCanBeReissued() {
+    db.query("SHOW INDEX FROM invoices WHERE Column_name = 'repair_id'", (err, indexes) => {
+        if (err) {
+            console.error("Invoice index check error:", err);
+            return;
+        }
+
+        const hasRegularRepairIndex = indexes.some((index) => index.Key_name === "idx_invoices_repair_id" && index.Non_unique === 1);
+        const uniqueRepairIndexes = [...new Set(indexes
+            .filter((index) => index.Non_unique === 0 && index.Key_name !== "PRIMARY")
+            .map((index) => index.Key_name))];
+
+        const dropUniqueIndexes = () => {
+            uniqueRepairIndexes.forEach((indexName) => {
+                const sql = "ALTER TABLE invoices DROP INDEX `" + escapeIndexName(indexName) + "`";
+                db.query(sql, (dropErr) => {
+                    if (dropErr) console.error("Invoice unique index migration error:", dropErr);
+                });
+            });
+        };
+
+        if (hasRegularRepairIndex) {
+            dropUniqueIndexes();
+            return;
+        }
+
+        db.query("ALTER TABLE invoices ADD INDEX idx_invoices_repair_id (repair_id)", (indexErr) => {
+            if (indexErr && indexErr.code !== "ER_DUP_KEYNAME") {
+                console.error("Invoice repair index migration error:", indexErr);
+                return;
+            }
+
+            dropUniqueIndexes();
+        });
+    });
+}
+
+ensureInvoiceRepairCanBeReissued();
+
 router.get("/invoices", verifyToken, (req, res) => {
     const sql = `
         SELECT
@@ -172,6 +215,13 @@ router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
             repairs.repair_date,
             repairs.mechanic_name,
             repairs.description,
+            repairs.status AS repair_status,
+            (
+                SELECT id
+                FROM invoices
+                WHERE repair_id = repairs.id AND status <> 'cancelled'
+                LIMIT 1
+            ) AS active_invoice_id,
             repairs.labor_price,
             repairs.total_price,
             repairs.hours_worked,
@@ -201,9 +251,17 @@ router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
         if (err) return res.status(500).json({ error: "Database error" });
         if (results.length === 0) return res.status(404).json({ error: "Repair not found" });
 
-        fs.mkdirSync(invoicesDir, { recursive: true });
-
         const data = results[0];
+
+        if (data.repair_status !== "completed") {
+            return res.status(400).json({ error: "Фактура може да се издаде само за завършен ремонт" });
+        }
+
+        if (data.active_invoice_id) {
+            return res.status(409).json({ error: "За този ремонт вече има активна фактура" });
+        }
+
+        fs.mkdirSync(invoicesDir, { recursive: true });
         const invoiceNumber = createInvoiceNumber(repairId);
         const fileName = `invoice_${invoiceNumber}.pdf`;
         const pdfPath = `invoices/${fileName}`;
@@ -223,7 +281,7 @@ router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
                 if (invoiceErr) {
                     if (invoiceErr.code === "ER_DUP_ENTRY") {
                         fs.unlink(filePath, () => {});
-                        return res.status(409).json({ error: "За този ремонт вече има фактура" });
+                        return res.status(409).json({ error: "За този ремонт вече има активна фактура" });
                     }
 
                     return res.status(500).json({ error: "Invoice PDF generated, but database save failed" });

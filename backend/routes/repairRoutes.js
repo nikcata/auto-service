@@ -19,6 +19,36 @@ function calculateLabor(hoursWorked, pricePerHour) {
     };
 }
 
+function numberOrDefault(value, defaultValue) {
+    if (value == null) return defaultValue;
+
+    const normalizedValue = String(value).trim().replace(",", ".");
+    if (normalizedValue === "") return defaultValue;
+
+    return Number(normalizedValue);
+}
+
+function validatePartValues(quantity, unitPrice) {
+    const partQuantity = numberOrDefault(quantity, 1);
+    const partUnitPrice = numberOrDefault(unitPrice, 0);
+
+    if (!Number.isInteger(partQuantity) || partQuantity < 1) {
+        return { error: "Броят трябва да бъде цяло число поне 1" };
+    }
+
+    if (!Number.isFinite(partUnitPrice) || partUnitPrice < 0) {
+        return { error: "Ед. цената трябва да бъде валидно число 0 или повече" };
+    }
+
+    const roundedUnitPrice = Math.round(partUnitPrice * 100) / 100;
+
+    return {
+        partQuantity,
+        unitPrice: roundedUnitPrice,
+        totalPrice: Math.round(partQuantity * roundedUnitPrice * 100) / 100
+    };
+}
+
 function updateRepairTotal(repairId, callback) {
     const updateSql = `
         UPDATE repairs
@@ -46,7 +76,7 @@ router.get("/repairs", verifyToken, (req, res) => {
         FROM repairs
         JOIN cars ON repairs.car_id = cars.id
         JOIN customers ON cars.customer_id = customers.id
-        LEFT JOIN invoices ON invoices.repair_id = repairs.id
+        LEFT JOIN invoices ON invoices.repair_id = repairs.id AND invoices.status <> 'cancelled'
         WHERE repairs.archived_at IS NULL
         ORDER BY repairs.repair_date DESC, repairs.created_at DESC
     `;
@@ -71,7 +101,7 @@ router.get("/repairs/archive", verifyToken, requireAdmin, (req, res) => {
         FROM repairs
         JOIN cars ON repairs.car_id = cars.id
         JOIN customers ON cars.customer_id = customers.id
-        LEFT JOIN invoices ON invoices.repair_id = repairs.id
+        LEFT JOIN invoices ON invoices.repair_id = repairs.id AND invoices.status <> 'cancelled'
         WHERE repairs.archived_at IS NOT NULL
         ORDER BY repairs.archived_at DESC, repairs.repair_date DESC
     `;
@@ -96,7 +126,7 @@ router.get("/repairs/:id", verifyToken, (req, res) => {
         FROM repairs
         JOIN cars ON repairs.car_id = cars.id
         JOIN customers ON cars.customer_id = customers.id
-        LEFT JOIN invoices ON invoices.repair_id = repairs.id
+        LEFT JOIN invoices ON invoices.repair_id = repairs.id AND invoices.status <> 'cancelled'
         WHERE repairs.id = ?
     `;
 
@@ -300,14 +330,19 @@ router.delete("/repairs/:id", verifyToken, (req, res) => {
 
 router.post("/repair-parts", verifyToken, (req, res) => {
     const { repair_id, part_name, brand, quantity, unit_price } = req.body;
+    const normalizedPartName = String(part_name || "").trim();
+    const normalizedBrand = String(brand || "").trim() || null;
 
-    if (!repair_id || !part_name) {
+    if (!repair_id || !normalizedPartName) {
         return res.status(400).json({ error: "Repair and part name are required" });
     }
 
-    const partQuantity = Number(quantity || 1);
-    const unitPrice = Number(unit_price || 0);
-    const total_price = partQuantity * unitPrice;
+    const partValues = validatePartValues(quantity, unit_price);
+    if (partValues.error) {
+        return res.status(400).json({ error: partValues.error });
+    }
+
+    const { partQuantity, unitPrice, totalPrice } = partValues;
 
     const sql = `
         INSERT INTO repair_parts
@@ -319,7 +354,7 @@ router.post("/repair-parts", verifyToken, (req, res) => {
         if (repairErr) return res.status(500).json({ error: "Database error" });
         if (repairs.length === 0) return res.status(404).json({ error: "Repair not found" });
 
-        db.query(sql, [repair_id, part_name, brand, partQuantity, unitPrice, total_price], (err, result) => {
+        db.query(sql, [repair_id, normalizedPartName, normalizedBrand, partQuantity, unitPrice, totalPrice], (err, result) => {
             if (err) return res.status(500).json({ error: "Database error" });
 
             updateRepairTotal(repair_id, (err2) => {
@@ -328,7 +363,7 @@ router.post("/repair-parts", verifyToken, (req, res) => {
                 res.json({
                     message: "Part added!",
                     part_id: result.insertId,
-                    part_total: total_price
+                    part_total: totalPrice
                 });
             });
         });
@@ -337,14 +372,19 @@ router.post("/repair-parts", verifyToken, (req, res) => {
 
 router.put("/repair-parts/:id", verifyToken, (req, res) => {
     const { part_name, brand, quantity, unit_price } = req.body;
+    const normalizedPartName = String(part_name || "").trim();
+    const normalizedBrand = String(brand || "").trim() || null;
 
-    if (!part_name) {
+    if (!normalizedPartName) {
         return res.status(400).json({ error: "Part name is required" });
     }
 
-    const partQuantity = Number(quantity || 1);
-    const unitPrice = Number(unit_price || 0);
-    const total_price = partQuantity * unitPrice;
+    const partValues = validatePartValues(quantity, unit_price);
+    if (partValues.error) {
+        return res.status(400).json({ error: partValues.error });
+    }
+
+    const { partQuantity, unitPrice, totalPrice } = partValues;
 
     db.query("SELECT repair_id FROM repair_parts WHERE id = ?", [req.params.id], (selectErr, rows) => {
         if (selectErr) return res.status(500).json({ error: "Database error" });
@@ -357,7 +397,7 @@ router.put("/repair-parts/:id", verifyToken, (req, res) => {
             WHERE id = ?
         `;
 
-        db.query(sql, [part_name, brand, partQuantity, unitPrice, total_price, req.params.id], (updateErr) => {
+        db.query(sql, [normalizedPartName, normalizedBrand, partQuantity, unitPrice, totalPrice, req.params.id], (updateErr) => {
             if (updateErr) return res.status(500).json({ error: "Database error" });
 
             updateRepairTotal(repairId, (totalErr) => {

@@ -182,13 +182,20 @@ router.patch("/appointments/:id/status", verifyToken, (req, res) => {
 });
 
 router.delete("/appointments/:id", verifyToken, (req, res) => {
-    const sql = "DELETE FROM appointments WHERE id = ?";
+    db.query("SELECT id FROM repairs WHERE appointment_id = ? LIMIT 1", [req.params.id], (repairErr, repairs) => {
+        if (repairErr) return res.status(500).json({ error: "Database error" });
+        if (repairs.length > 0) {
+            return res.status(409).json({ error: "Не може да изтриеш час, към който вече има започнат ремонт" });
+        }
 
-    db.query(sql, [req.params.id], (err, result) => {
-        if (err) return res.status(500).json({ error: "Database error" });
-        if (result.affectedRows === 0) return res.status(404).json({ error: "Appointment not found" });
+        const sql = "DELETE FROM appointments WHERE id = ?";
 
-        res.json({ message: "Appointment deleted successfully!" });
+        db.query(sql, [req.params.id], (err, result) => {
+            if (err) return res.status(500).json({ error: "Database error" });
+            if (result.affectedRows === 0) return res.status(404).json({ error: "Appointment not found" });
+
+            res.json({ message: "Appointment deleted successfully!" });
+        });
     });
 });
 

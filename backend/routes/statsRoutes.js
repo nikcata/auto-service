@@ -15,7 +15,7 @@ router.get("/stats", verifyToken, (req, res) => {
     const stats = {};
     const incomePeriod = incomePeriods[req.query.income_period] ? req.query.income_period : "month";
 
-    db.query("SELECT COUNT(*) AS total_customers FROM customers", (err, r1) => {
+    db.query("SELECT COUNT(*) AS total_customers FROM customers WHERE deleted_at IS NULL", (err, r1) => {
         if (err) return res.status(500).json({ error: "DB error" });
 
         stats.total_customers = r1[0].total_customers;
@@ -31,7 +31,7 @@ router.get("/stats", verifyToken, (req, res) => {
                 return res.json(stats);
             }
 
-            db.query(`SELECT SUM(total_price) AS total_income FROM repairs WHERE status = 'completed' AND ${incomePeriods[incomePeriod]}`, (err, r3) => {
+            db.query(`SELECT SUM(total_price) AS total_income FROM repairs WHERE status = 'completed' AND archived_at IS NULL AND ${incomePeriods[incomePeriod]}`, (err, r3) => {
                 if (err) return res.status(500).json({ error: "DB error" });
 
                 stats.total_income = r3[0].total_income || 0;
@@ -42,7 +42,7 @@ router.get("/stats", verifyToken, (req, res) => {
                         COUNT(*) AS repair_count,
                         SUM(total_price) AS total_income
                     FROM repairs
-                    WHERE status = 'completed' AND ${incomePeriods[incomePeriod]}
+                    WHERE status = 'completed' AND archived_at IS NULL AND ${incomePeriods[incomePeriod]}
                     GROUP BY COALESCE(NULLIF(TRIM(mechanic_name), ''), 'Без майстор')
                     ORDER BY total_income DESC, repair_count DESC, mechanic_name ASC
                 `;

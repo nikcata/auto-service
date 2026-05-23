@@ -29,7 +29,7 @@ CREATE TABLE cars (
     mileage INT,
     deleted_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
 );
 
 CREATE TABLE repairs (
@@ -46,7 +46,7 @@ CREATE TABLE repairs (
     status VARCHAR(50),
     archived_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
+    FOREIGN KEY (car_id) REFERENCES cars(id)
 );
 
 CREATE TABLE repair_parts (
@@ -58,7 +58,7 @@ CREATE TABLE repair_parts (
     unit_price DECIMAL(10,2),
     total_price DECIMAL(10,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (repair_id) REFERENCES repairs(id) ON DELETE CASCADE
+    FOREIGN KEY (repair_id) REFERENCES repairs(id)
 );
 
 CREATE TABLE appointments (
@@ -69,18 +69,18 @@ CREATE TABLE appointments (
     reason TEXT,
     status VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
-    FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES customers(id),
+    FOREIGN KEY (car_id) REFERENCES cars(id)
 );
 
 CREATE TABLE invoices (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    repair_id INT UNIQUE,
+    repair_id INT,
     invoice_number VARCHAR(50) NOT NULL,
     issue_date DATE,
     total_amount DECIMAL(10,2),
     pdf_path VARCHAR(255),
     status VARCHAR(20) NOT NULL DEFAULT 'issued',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (repair_id) REFERENCES repairs(id) ON DELETE CASCADE
+    FOREIGN KEY (repair_id) REFERENCES repairs(id)
 );

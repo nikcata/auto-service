@@ -49,6 +49,22 @@ function submitJson(path, method) {
     };
 }
 
+function resetRepairPartInputs(form) {
+    if (!form) return;
+
+    const defaults = {
+        part_name: "",
+        brand: "",
+        quantity: "1",
+        unit_price: "0"
+    };
+
+    Object.entries(defaults).forEach(([name, value]) => {
+        const field = form.querySelector(`[name="${name}"]`);
+        if (field) field.value = value;
+    });
+}
+
 async function submitRepairPart(event) {
     event.preventDefault();
     const values = normalizeFormValues(Object.fromEntries(new FormData(event.currentTarget).entries()));
@@ -59,6 +75,7 @@ async function submitRepairPart(event) {
             body: JSON.stringify(values)
         });
 
+        resetRepairPartInputs(event.currentTarget);
         clearFormDraft(event.currentTarget);
         state.selectedRepairId = String(values.repair_id || "");
         sessionStorage.setItem("selectedRepairId", state.selectedRepairId);
@@ -385,11 +402,13 @@ async function deletePartFromEdit(partId, repairId) {
 }
 
 async function generateInvoice(event) {
+    event.preventDefault();
     const repairId = event.currentTarget.dataset.invoice;
 
     try {
         const repair = await api(`/repairs/${repairId}`);
         showInvoicePreview(repair);
+        setNotice("Прегледай данните и потвърди издаването на фактурата.");
     } catch (error) {
         setNotice(error.message, true);
     }
@@ -461,20 +480,47 @@ async function confirmGenerateInvoice(event) {
     const button = event.currentTarget;
     const repairId = button.dataset.confirmInvoice;
     const originalText = button.textContent;
+    const invoiceWindow = window.open("about:blank", "_blank");
 
     button.disabled = true;
     button.textContent = "Генериране...";
 
     try {
         const result = await api(`/invoice/${repairId}`);
+        const invoiceUrl = `${API_URL}/${result.file}`;
+
         modalRoot.innerHTML = "";
-        window.open(`${API_URL}/${result.file}`, "_blank");
+        if (invoiceWindow) {
+            invoiceWindow.location.href = invoiceUrl;
+        } else {
+            modalRoot.innerHTML = `
+                <div class="modal-backdrop" data-close-invoice-preview>
+                    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Фактурата е готова">
+                        <div class="modal-head">
+                            <h3>Фактурата е готова</h3>
+                            <button class="secondary small" data-close-invoice-preview type="button">Затвори</button>
+                        </div>
+                        <a class="primary" href="${escapeHtml(invoiceUrl)}" target="_blank">Отвори фактура</a>
+                    </div>
+                </div>
+            `;
+            modalRoot.querySelectorAll("[data-close-invoice-preview]").forEach((element) => {
+                element.addEventListener("click", (closeEvent) => {
+                    if (closeEvent.target === element || element.tagName === "BUTTON") {
+                        modalRoot.innerHTML = "";
+                    }
+                });
+            });
+        }
         setNotice("Фактурата е генерирана.");
         await refreshInvoiceList();
         if (typeof refreshCompletedRepairList === "function") {
             await refreshCompletedRepairList();
         }
     } catch (error) {
+        if (invoiceWindow) {
+            invoiceWindow.close();
+        }
         button.disabled = false;
         button.textContent = originalText;
         setNotice(error.message, true);

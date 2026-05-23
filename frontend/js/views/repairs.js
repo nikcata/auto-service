@@ -37,7 +37,7 @@ async function renderRepairs(view) {
             <div class="card">
                 <h3>Добави част</h3>
                 ${openRepairs.length ? `
-                    <form class="form" data-part-form data-draft-key="repairs:part">
+                    <form class="form" data-part-form>
                         <label>Ремонт<select name="repair_id" required><option value="">Избери ремонт</option>${options(openRepairs, "id", (r) => `#${r.id} - ${r.brand || "-"} ${r.model || ""} (${r.registration_number || "-"}) - ${formatDate(r.repair_date)}`, selectedRepairId)}</select></label>
                         <div class="open-repair-toolbar">
                             <button class="danger secondary open-repair-delete-button" type="button" data-delete-open-repair="${selectedRepairId}" ${selectedRepairId ? "" : "disabled"}>Премахни започнат ремонт</button>
@@ -147,12 +147,11 @@ function repairLaborForm(repair) {
 }
 
 function invoiceAction(repair) {
-    if (repair.invoice_id) {
-        const label = repair.invoice_status === "cancelled" ? "Фактура анулирана" : "Фактура издадена";
-        return '<span class="muted action-note">' + escapeHtml(label) + '</span>';
+    if (repair.invoice_id && repair.invoice_status !== "cancelled") {
+        return '<span class="muted action-note">Фактура издадена</span>';
     }
 
-    return '<button class="secondary small" data-invoice="' + escapeHtml(repair.id) + '">Издай фактура</button>';
+    return '<button class="secondary small" type="button" data-invoice="' + escapeHtml(repair.id) + '">Издай фактура</button>';
 }
 
 function completedRepairTable(repairs) {
