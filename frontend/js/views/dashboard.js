@@ -82,52 +82,6 @@ async function renderDashboard(view) {
     bindDashboardCalendarActions(appointments);
 }
 
-async function downloadDatabaseBackup(event) {
-    const button = event.currentTarget;
-    const originalText = button.textContent;
-
-    button.disabled = true;
-    button.textContent = "Сваляне...";
-
-    try {
-        const response = await fetch(API_URL + "/backup/database", {
-            headers: {
-                Authorization: "Bearer " + state.token
-            }
-        });
-
-        if (!response.ok) {
-            const text = await response.text();
-            let message = "Backup failed";
-            try {
-                message = JSON.parse(text).error || message;
-            } catch (error) {
-                message = text || message;
-            }
-            throw new Error(message);
-        }
-
-        const blob = await response.blob();
-        const disposition = response.headers.get("Content-Disposition") || "";
-        const fileName = disposition.match(/filename="?([^";]+)"?/)?.[1] || "auto_service_backup.sql";
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
-        setNotice("Backup файлът е свален.");
-    } catch (error) {
-        setNotice(error.message || "Неуспешен backup", true);
-    } finally {
-        button.disabled = false;
-        button.textContent = originalText;
-    }
-}
-
 function mechanicIncomeTable(rows) {
     if (!rows.length) {
         return `<p class="muted">Няма приходи за избрания период.</p>`;
@@ -141,6 +95,121 @@ function mechanicIncomeTable(rows) {
 }
 
 function dashboardCalendar(appointments) {
+    const mode = state.dashboardCalendarMode || "week";
+
+    if (mode === "month") {
+        return dashboardMonthCalendar(appointments);
+    }
+
+    return dashboardWeekCalendar(appointments);
+}
+
+function groupAppointmentsByDay(appointments) {
+    const groups = appointments.reduce((itemsByDay, appointment) => {
+        const key = dateKey(appointment.appointment_date);
+        itemsByDay[key] = itemsByDay[key] || [];
+        itemsByDay[key].push(appointment);
+        return itemsByDay;
+    }, {});
+
+    Object.values(groups).forEach((items) => {
+        items.sort((a, b) => new Date(a.appointment_date) - new Date(b.appointment_date));
+    });
+
+    return groups;
+}
+
+function startOfWorkWeek(value = new Date()) {
+    const date = new Date(value);
+    const dayIndex = (date.getDay() + 6) % 7;
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - dayIndex);
+    return date;
+}
+
+function ensureDashboardDates() {
+    if (!state.dashboardMonth) {
+        state.dashboardMonth = monthKey();
+        localStorage.setItem("dashboardMonth", state.dashboardMonth);
+    }
+
+    if (!state.dashboardWeekStart) {
+        state.dashboardWeekStart = dateKey(startOfWorkWeek());
+        localStorage.setItem("dashboardWeekStart", state.dashboardWeekStart);
+    }
+}
+
+function dashboardCalendarHeader(title, subtitle) {
+    const mode = state.dashboardCalendarMode || "week";
+
+    return `
+        <div class="dashboard-calendar-head">
+            <div>
+                <h3>${title}</h3>
+                <p>${subtitle}</p>
+            </div>
+            <div class="dashboard-calendar-actions">
+                <div class="dashboard-calendar-toggle" role="group" aria-label="Изглед на календара">
+                    <button class="secondary small ${mode === "week" ? "active" : ""}" data-dashboard-view="week" type="button">5 дни</button>
+                    <button class="secondary small ${mode === "month" ? "active" : ""}" data-dashboard-view="month" type="button">Месец</button>
+                </div>
+                <div class="dashboard-calendar-controls">
+                    <button class="secondary small" data-dashboard-range="prev" type="button">‹</button>
+                    <button class="secondary small" data-dashboard-range="today" type="button">Днес</button>
+                    <button class="secondary small" data-dashboard-range="next" type="button">›</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function dashboardWeekCalendar(appointments) {
+    ensureDashboardDates();
+
+    const weekStart = new Date(`${state.dashboardWeekStart}T00:00:00`);
+    const days = Array.from({ length: 5 }, (_, index) => {
+        const day = new Date(weekStart);
+        day.setDate(weekStart.getDate() + index);
+        return day;
+    });
+    const appointmentsByDay = groupAppointmentsByDay(appointments);
+    const todayKey = dateKey(new Date());
+    const weekdays = ["Пон", "Вто", "Сря", "Чет", "Пет"];
+    const weekEnd = days[days.length - 1];
+    const dayCells = days.map((day) => {
+        const key = dateKey(day);
+        const dayAppointments = appointmentsByDay[key] || [];
+        const isToday = key === todayKey;
+
+        return `
+            <div class="dashboard-calendar-day ${isToday ? "today" : ""}">
+                <div class="dashboard-calendar-date">
+                    <span>${day.toLocaleDateString("bg-BG", { day: "numeric", month: "short" })}</span>
+                    ${dayAppointments.length ? `<strong>${dayAppointments.length}</strong>` : ""}
+                </div>
+                <div class="dashboard-calendar-items">
+                    ${dayAppointments.map((appointment) => dashboardCalendarAppointment(appointment)).join("")}
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    return `
+        <div class="dashboard-calendar dashboard-calendar-week-view">
+            ${dashboardCalendarHeader("5-дневен календар", `${formatDate(weekStart)} - ${formatDate(weekEnd)}`)}
+            <div class="dashboard-calendar-weekdays">
+                ${weekdays.map((day, index) => `<span>${day}<small>${days[index].toLocaleDateString("bg-BG", { day: "numeric", month: "short" })}</small></span>`).join("")}
+            </div>
+            <div class="dashboard-calendar-grid">
+                ${dayCells}
+            </div>
+        </div>
+    `;
+}
+
+function dashboardMonthCalendar(appointments) {
+    ensureDashboardDates();
+
     const monthDate = monthDateFromKey(state.dashboardMonth);
     const year = monthDate.getFullYear();
     const month = monthDate.getMonth();
@@ -151,16 +220,7 @@ function dashboardCalendar(appointments) {
     const totalCells = Math.ceil((startOffset + lastDay.getDate()) / 7) * 7;
     const weekdays = ["Пон", "Вто", "Сря", "Чет", "Пет", "Съб", "Нед"];
     const todayKey = dateKey(new Date());
-    const appointmentsByDay = appointments.reduce((groups, appointment) => {
-        const key = dateKey(appointment.appointment_date);
-        groups[key] = groups[key] || [];
-        groups[key].push(appointment);
-        return groups;
-    }, {});
-
-    Object.values(appointmentsByDay).forEach((items) => {
-        items.sort((a, b) => new Date(a.appointment_date) - new Date(b.appointment_date));
-    });
+    const appointmentsByDay = groupAppointmentsByDay(appointments);
 
     const days = Array.from({ length: totalCells }, (_, index) => {
         const day = new Date(gridStart);
@@ -184,18 +244,8 @@ function dashboardCalendar(appointments) {
     }).join("");
 
     return `
-        <div class="dashboard-calendar">
-            <div class="dashboard-calendar-head">
-                <div>
-                    <h3>Месечен календар</h3>
-                    <p>${monthDate.toLocaleDateString("bg-BG", { month: "long", year: "numeric" })}</p>
-                </div>
-                <div class="dashboard-calendar-controls">
-                    <button class="secondary small" data-dashboard-month="prev" type="button">‹</button>
-                    <button class="secondary small" data-dashboard-month="today" type="button">Днес</button>
-                    <button class="secondary small" data-dashboard-month="next" type="button">›</button>
-                </div>
-            </div>
+        <div class="dashboard-calendar dashboard-calendar-month-view">
+            ${dashboardCalendarHeader("Месечен календар", monthDate.toLocaleDateString("bg-BG", { month: "long", year: "numeric" }))}
             <div class="dashboard-calendar-weekdays">
                 ${weekdays.map((day) => `<span>${day}</span>`).join("")}
             </div>
@@ -205,7 +255,6 @@ function dashboardCalendar(appointments) {
         </div>
     `;
 }
-
 function appointmentStatusLabel(status) {
     const labels = {
         scheduled: "Записан",
@@ -233,21 +282,49 @@ function dashboardCalendarAppointment(appointment) {
 }
 
 function bindDashboardCalendarActions(appointments) {
-    document.querySelectorAll("[data-dashboard-month]").forEach((button) => {
+    document.querySelectorAll("[data-dashboard-view]").forEach((button) => {
         button.addEventListener("click", () => {
-            const current = monthDateFromKey(state.dashboardMonth);
+            state.dashboardCalendarMode = button.dataset.dashboardView;
+            localStorage.setItem("dashboardCalendarMode", state.dashboardCalendarMode);
+            document.querySelector("[data-dashboard-calendar]").innerHTML = dashboardCalendar(appointments);
+            bindDashboardCalendarActions(appointments);
+        });
+    });
 
-            if (button.dataset.dashboardMonth === "prev") {
-                current.setMonth(current.getMonth() - 1);
-            } else if (button.dataset.dashboardMonth === "next") {
-                current.setMonth(current.getMonth() + 1);
+    document.querySelectorAll("[data-dashboard-range]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const action = button.dataset.dashboardRange;
+
+            if ((state.dashboardCalendarMode || "week") === "month") {
+                const current = monthDateFromKey(state.dashboardMonth);
+
+                if (action === "prev") {
+                    current.setMonth(current.getMonth() - 1);
+                } else if (action === "next") {
+                    current.setMonth(current.getMonth() + 1);
+                } else {
+                    const today = new Date();
+                    current.setFullYear(today.getFullYear(), today.getMonth(), 1);
+                }
+
+                state.dashboardMonth = monthKey(current);
+                localStorage.setItem("dashboardMonth", state.dashboardMonth);
             } else {
-                const today = new Date();
-                current.setFullYear(today.getFullYear(), today.getMonth(), 1);
+                const current = state.dashboardWeekStart ? new Date(`${state.dashboardWeekStart}T00:00:00`) : startOfWorkWeek();
+
+                if (action === "prev") {
+                    current.setDate(current.getDate() - 7);
+                } else if (action === "next") {
+                    current.setDate(current.getDate() + 7);
+                } else {
+                    const today = new Date();
+                    current.setTime(startOfWorkWeek(today).getTime());
+                }
+
+                state.dashboardWeekStart = dateKey(current);
+                localStorage.setItem("dashboardWeekStart", state.dashboardWeekStart);
             }
 
-            state.dashboardMonth = monthKey(current);
-            localStorage.setItem("dashboardMonth", state.dashboardMonth);
             document.querySelector("[data-dashboard-calendar]").innerHTML = dashboardCalendar(appointments);
             bindDashboardCalendarActions(appointments);
         });
@@ -260,7 +337,6 @@ function bindDashboardCalendarActions(appointments) {
         });
     });
 }
-
 function showAppointmentModal(appointment) {
     const car = `${appointment.brand || ""} ${appointment.model || ""}`.trim();
     const status = appointment.status || "scheduled";

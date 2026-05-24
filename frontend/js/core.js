@@ -4,6 +4,8 @@ const state = {
     view: sessionStorage.getItem("currentView") || "dashboard",
     incomePeriod: localStorage.getItem("incomePeriod") || "month",
     dashboardMonth: localStorage.getItem("dashboardMonth") || "",
+    dashboardCalendarMode: localStorage.getItem("dashboardCalendarMode") || "week",
+    dashboardWeekStart: localStorage.getItem("dashboardWeekStart") || "",
     selectedRepairId: sessionStorage.getItem("selectedRepairId") || "",
     user: JSON.parse(sessionStorage.getItem("user") || "null"),
     token: sessionStorage.getItem("token"),
@@ -135,13 +137,16 @@ async function api(path, options = {}) {
 
     if (!response.ok) {
         const message = data?.error || data?.message || "Request failed";
+        const requestError = new Error(message);
+        requestError.code = data?.code;
+        requestError.status = response.status;
 
         if (state.token && (response.status === 401 || response.status === 403) && message.toLowerCase().includes("token")) {
             logout();
             throw new Error("Session expired. Please log in again.");
         }
 
-        throw new Error(message);
+        throw requestError;
     }
 
     return data;

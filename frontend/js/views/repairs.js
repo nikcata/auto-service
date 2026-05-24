@@ -18,7 +18,10 @@ async function renderRepairs(view) {
             && !repairAppointmentIds.has(String(appointment.id))
             && !Number(appointment.has_repair);
     });
-
+    const appointmentSelectItems = availableAppointments.map((appointment) => ({
+        value: appointment.id,
+        label: `${formatDateTime(appointment.appointment_date)} - ${appointment.registration_number || "-"} - ${appointment.brand} ${appointment.model}`
+    }));
     view.innerHTML = `
         <div class="section">
             <div class="card">
@@ -26,9 +29,7 @@ async function renderRepairs(view) {
                 ${availableAppointments.length ? `
                     <form class="form" data-start-repair-form data-draft-key="repairs:start">
                         <label>Записан час
-                            <select name="appointment_id" required>
-                                ${options(availableAppointments, "id", (a) => `${formatDateTime(a.appointment_date)} - ${a.registration_number || "-"} - ${a.brand} ${a.model}`)}
-                            </select>
+                            ${searchableSelect("appointment_id", appointmentSelectItems, { placeholder: "Избери записан час", searchPlaceholder: "Търси по дата, рег. номер или автомобил" })}
                         </label>
                         <button class="primary">Започни ремонт</button>
                     </form>

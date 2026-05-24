@@ -16,15 +16,20 @@ function publicUser(user) {
     };
 }
 
+function validatePassword(password) {
+    return typeof password === "string" && password.length >= 4;
+}
+
 function createUser(req, res) {
-    const { username, password, role } = req.body;
+    const { username, role } = req.body;
+    const cleanUsername = String(username || "").trim();
     const userRole = allowedRoles.has(role) ? role : "mechanic";
 
-    if (!username || !password) {
-        return res.status(400).json({ error: "Username and password are required" });
+    if (!cleanUsername) {
+        return res.status(400).json({ error: "Username is required" });
     }
 
-    db.query("SELECT id FROM users WHERE username = ?", [username], async (selectErr, users) => {
+    db.query("SELECT id FROM users WHERE username = ?", [cleanUsername], (selectErr, users) => {
         if (selectErr) {
             return res.status(500).json({ error: "Database error" });
         }
@@ -33,27 +38,22 @@ function createUser(req, res) {
             return res.status(409).json({ error: "Username already exists" });
         }
 
-        try {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            const sql = "INSERT INTO users (username, password, role) VALUES (?, ?, ?)";
+        const sql = "INSERT INTO users (username, password, role) VALUES (?, NULL, ?)";
 
-            db.query(sql, [username, hashedPassword, userRole], (err, result) => {
-                if (err) {
-                    if (err.code === "ER_DUP_ENTRY") {
-                        return res.status(409).json({ error: "Username already exists" });
-                    }
-
-                    return res.status(500).json({ error: "Database error" });
+        db.query(sql, [cleanUsername, userRole], (err, result) => {
+            if (err) {
+                if (err.code === "ER_DUP_ENTRY") {
+                    return res.status(409).json({ error: "Username already exists" });
                 }
 
-                res.json({
-                    message: "User created successfully!",
-                    user_id: result.insertId
-                });
+                return res.status(500).json({ error: "Database error" });
+            }
+
+            res.json({
+                message: "User created successfully!",
+                user_id: result.insertId
             });
-        } catch (error) {
-            res.status(500).json({ error: "Error hashing password" });
-        }
+        });
     });
 }
 
@@ -76,6 +76,14 @@ router.post("/login", (req, res) => {
         }
 
         const user = results[0];
+
+        if (!user.password) {
+            return res.status(403).json({
+                code: "PASSWORD_SETUP_REQUIRED",
+                message: "Password setup required"
+            });
+        }
+
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (!isMatch) {
@@ -99,7 +107,7 @@ router.post("/login", (req, res) => {
 
 router.get("/users", verifyToken, requireAdmin, (req, res) => {
     const sql = `
-        SELECT id, username, role, created_at
+        SELECT id, username, role, created_at, password IS NOT NULL AS has_password
         FROM users
         ORDER BY
             CASE WHEN role = 'admin' THEN 0 ELSE 1 END,
@@ -115,18 +123,22 @@ router.get("/users", verifyToken, requireAdmin, (req, res) => {
 
 router.post("/users", verifyToken, requireAdmin, createUser);
 router.post("/register", verifyToken, requireAdmin, createUser);
-router.patch("/users/:id/password", verifyToken, requireAdmin, async (req, res) => {
-    const userId = Number(req.params.id);
-    const { password } = req.body;
+router.post("/password/reset", async (req, res) => {
+    const username = String(req.body.username || "").trim();
+    const password = String(req.body.password || "");
 
-    if (!password || String(password).length < 4) {
+    if (!username) {
+        return res.status(400).json({ error: "Username is required" });
+    }
+
+    if (!validatePassword(password)) {
         return res.status(400).json({ error: "Password must be at least 4 characters" });
     }
 
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        db.query("UPDATE users SET password = ? WHERE id = ?", [hashedPassword, userId], (err, result) => {
+        db.query("UPDATE users SET password = ? WHERE BINARY username = ?", [hashedPassword, username], (err, result) => {
             if (err) return res.status(500).json({ error: "Database error" });
             if (result.affectedRows === 0) return res.status(404).json({ error: "User not found" });
 
@@ -136,7 +148,6 @@ router.patch("/users/:id/password", verifyToken, requireAdmin, async (req, res) 
         res.status(500).json({ error: "Error hashing password" });
     }
 });
-
 
 router.delete("/users/:id", verifyToken, requireAdmin, (req, res) => {
     const userId = Number(req.params.id);

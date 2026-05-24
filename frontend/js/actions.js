@@ -542,6 +542,143 @@ function options(items, valueKey, labelKey, selectedValue = "") {
     }).join("");
 }
 
+function searchableSelect(name, items, config = {}) {
+    const selectedValue = String(config.selectedValue ?? "");
+    const placeholder = config.placeholder || "Избери";
+    const searchPlaceholder = config.searchPlaceholder || placeholder;
+    const required = config.required === false ? "" : " required";
+    const selectedItem = items.find((item) => String(item.value ?? "") === selectedValue);
+    const itemOptions = items.map((item) => {
+        const value = String(item.value ?? "");
+        const label = String(item.label ?? "");
+        const selected = value === selectedValue ? " selected" : "";
+
+        return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
+    }).join("");
+
+    return `
+        <div class="searchable-select" data-searchable-select data-placeholder="${escapeHtml(placeholder)}" data-options='${escapeHtml(JSON.stringify(items))}'>
+            <input class="select-display" data-select-search type="search" placeholder="${escapeHtml(searchPlaceholder)}" autocomplete="off" value="${escapeHtml(selectedItem?.label || "")}"${required}>
+            <select class="native-select-hidden" name="${escapeHtml(name)}" tabindex="-1" aria-hidden="true">
+                <option value="">${escapeHtml(placeholder)}</option>
+                ${itemOptions}
+            </select>
+            <div class="select-menu" data-select-menu hidden></div>
+            <small class="select-count" data-select-count></small>
+        </div>
+    `;
+}
+
+function setupSearchableSelects(scope = document) {
+    scope.querySelectorAll("[data-searchable-select]").forEach((box) => {
+        if (box.dataset.searchableReady === "true") return;
+
+        const input = box.querySelector("[data-select-search]");
+        const select = box.querySelector("select");
+        const menu = box.querySelector("[data-select-menu]");
+        const count = box.querySelector("[data-select-count]");
+        if (!input || !select || !menu) return;
+
+        let items = [];
+        try {
+            items = JSON.parse(box.dataset.options || "[]").map((item) => ({
+                value: String(item.value ?? ""),
+                label: String(item.label ?? "")
+            }));
+        } catch (error) {
+            items = [];
+        }
+
+        const placeholder = box.dataset.placeholder || "Избери";
+        const matchesQuery = (item, query) => item.label.toLowerCase().includes(query);
+        const selectedLabel = () => items.find((item) => item.value === String(select.value || ""))?.label || "";
+        const setValidState = () => {
+            input.setCustomValidity(select.value ? "" : "Избери запис от списъка");
+        };
+
+        const closeMenu = () => {
+            menu.hidden = true;
+            input.value = selectedLabel();
+            setValidState();
+        };
+
+        const chooseItem = (item) => {
+            select.value = item.value;
+            input.value = item.label;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            setValidState();
+            menu.hidden = true;
+        };
+
+        const renderOptions = () => {
+            const pendingValue = box.dataset.pendingValue;
+            if (pendingValue !== undefined) {
+                select.value = pendingValue;
+                input.value = selectedLabel();
+                delete box.dataset.pendingValue;
+            }
+
+            const query = input.value.trim().toLowerCase();
+            const currentLabel = selectedLabel().toLowerCase();
+            const searchQuery = query && query !== currentLabel ? query : "";
+            const matched = searchQuery ? items.filter((item) => matchesQuery(item, searchQuery)) : items;
+            menu.innerHTML = matched.length
+                ? matched.map((item) => `
+                    <button class="select-option${item.value === String(select.value || "") ? " active" : ""}" type="button" data-select-value="${escapeHtml(item.value)}" title="${escapeHtml(item.label)}">
+                        ${escapeHtml(item.label)}
+                    </button>
+                `).join("")
+                : `<div class="select-empty">Няма намерени записи.</div>`;
+
+            if (count) count.textContent = "";
+            setValidState();
+        };
+
+        input.addEventListener("focus", () => {
+            input.select();
+            renderOptions();
+            menu.hidden = false;
+        });
+
+        input.addEventListener("input", () => {
+            select.value = "";
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            renderOptions();
+            menu.hidden = false;
+        });
+
+        menu.addEventListener("click", (event) => {
+            const button = event.target.closest("[data-select-value]");
+            if (!button) return;
+            const item = items.find((entry) => entry.value === button.dataset.selectValue);
+            if (item) chooseItem(item);
+        });
+
+        document.addEventListener("click", (event) => {
+            if (!box.contains(event.target)) closeMenu();
+        });
+
+        box.renderSearchableOptions = renderOptions;
+        box.dataset.searchableReady = "true";
+        input.value = selectedLabel();
+        renderOptions();
+    });
+}
+
+function setSearchableSelectValue(select, value) {
+    const box = select?.closest?.("[data-searchable-select]");
+    if (!box) {
+        if (select) select.value = value || "";
+        return;
+    }
+
+    box.dataset.pendingValue = String(value || "");
+    if (typeof box.renderSearchableOptions === "function") {
+        box.renderSearchableOptions();
+    }
+    select.value = String(value || "");
+}
+
 function table(headers, rows) {
     if (!rows.length) return `<p class="empty">Няма записи.</p>`;
 

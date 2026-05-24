@@ -7,14 +7,22 @@ async function renderAppointments(view) {
 
         return carA.localeCompare(carB, "bg", { sensitivity: "base" });
     });
+    const customerSelectItems = sortedCustomers.map((customer) => ({
+        value: customer.id,
+        label: `${customer.full_name} - ${customer.phone || "без телефон"}`
+    }));
+    const carSelectItems = sortedCars.map((car) => ({
+        value: car.id,
+        label: `${car.brand} ${car.model} - ${car.registration_number || "-"}`
+    }));
 
     view.innerHTML = `
         <div class="section">
             <div class="card">
                 <h3>Нов час</h3>
                 <form class="form" data-appointment-form data-draft-key="appointments:new">
-                    <label>Клиент<select name="customer_id" required>${options(sortedCustomers, "id", (customer) => `${customer.full_name} - ${customer.phone || "без телефон"}`)}</select></label>
-                    <label>Автомобил<select name="car_id" required>${options(sortedCars, "id", (c) => `${c.brand} ${c.model} - ${c.registration_number || "-"}`)}</select></label>
+                    <label>Клиент${searchableSelect("customer_id", customerSelectItems, { placeholder: "Избери клиент", searchPlaceholder: "Търси клиент по име или телефон" })}</label>
+                    <label>Автомобил${searchableSelect("car_id", carSelectItems, { placeholder: "Избери автомобил", searchPlaceholder: "Търси по марка, модел или рег. номер" })}</label>
                     <div class="form-row">
                         <label>Дата<input name="appointment_date_day" type="date" min="${todayInputDate()}" required></label>
                         <label>Час<input name="appointment_date_time" type="time" step="1800" required></label>
@@ -36,8 +44,10 @@ async function renderAppointments(view) {
     document.querySelector("[data-appointment-form]").addEventListener("submit", submitAppointment);
 
     const renderAppointmentList = (items) => {
-        document.querySelector("[data-appointments-list]").innerHTML = appointmentTable(items);
-        bindAppointmentActions(items);
+        const sortedItems = sortAppointmentsByDateDesc(items);
+
+        document.querySelector("[data-appointments-list]").innerHTML = appointmentTable(sortedItems);
+        bindAppointmentActions(sortedItems);
     };
 
     renderAppointmentList(appointments);
@@ -59,6 +69,10 @@ async function renderAppointments(view) {
 
         renderAppointmentList(filteredAppointments);
     });
+}
+
+function sortAppointmentsByDateDesc(appointments) {
+    return [...appointments].sort((a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime());
 }
 
 function appointmentTable(appointments) {

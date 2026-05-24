@@ -270,6 +270,69 @@ button {
     gap: 12px;
 }
 
+.searchable-select {
+    position: relative;
+    display: grid;
+    gap: 6px;
+}
+
+.select-display {
+    background: #ffffff;
+}
+
+.native-select-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.select-menu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: min(720px, 70vh);
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.18);
+}
+
+.select-option {
+    width: 100%;
+    display: block;
+    height: auto;
+    padding: 9px 11px;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    color: var(--text);
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.select-option:hover,
+.select-option.active {
+    background: #edf2f7;
+}
+
+.select-empty {
+    padding: 10px 11px;
+    color: var(--muted);
+}
+
+.select-count {
+    display: none;
+}
+
 label {
     display: grid;
     gap: 6px;
@@ -731,10 +794,36 @@ table thead th,
     gap: 8px;
 }
 
+.dashboard-calendar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.dashboard-calendar-toggle {
+    display: flex;
+    gap: 6px;
+    padding: 4px;
+    border-radius: 8px;
+    background: #f1f5f9;
+}
+
+.dashboard-calendar-toggle .active {
+    background: var(--brand);
+    color: #ffffff;
+}
+
 .dashboard-calendar-weekdays,
 .dashboard-calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.dashboard-calendar-week-view .dashboard-calendar-weekdays,
+.dashboard-calendar-week-view .dashboard-calendar-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .dashboard-calendar-weekdays {
@@ -753,6 +842,14 @@ table thead th,
     border-right: 1px solid var(--line);
 }
 
+.dashboard-calendar-weekdays small {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: #98a2b3;
+    text-transform: capitalize;
+}
+
 .dashboard-calendar-weekdays span:last-child {
     border-right: 0;
 }
@@ -769,6 +866,12 @@ table thead th,
     border-bottom: 1px solid var(--line);
     padding: 8px;
     overflow: hidden;
+}
+
+.dashboard-calendar-week-view .dashboard-calendar-day {
+    min-height: 360px;
+    height: 46vh;
+    max-height: 520px;
 }
 
 .dashboard-calendar-day.muted-day {
@@ -805,6 +908,10 @@ table thead th,
     overflow-y: auto;
     padding-right: 3px;
     overscroll-behavior: contain;
+}
+
+.dashboard-calendar-week-view .dashboard-calendar-items {
+    max-height: calc(100% - 34px);
 }
 
 .dashboard-calendar-items::-webkit-scrollbar {
@@ -1228,13 +1335,40 @@ table thead th,
 }
 
 
-.user-table th:last-child {
-    text-align: left !important;
-    padding-left: 32px;
+.user-table table {
+    table-layout: fixed;
 }
 
-.user-actions {
-    justify-content: flex-start;
+.user-table th:nth-child(1),
+.user-table td:nth-child(1) {
+    width: 24%;
+}
+
+.user-table th:nth-child(2),
+.user-table td:nth-child(2) {
+    width: 17%;
+}
+
+.user-table th:nth-child(3),
+.user-table td:nth-child(3) {
+    width: 33%;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.user-table th:nth-child(4),
+.user-table td:nth-child(4) {
+    width: 26%;
+    text-align: center;
+}
+
+.user-table table thead th:nth-child(3),
+.user-table table thead th:nth-child(4) {
+    text-align: center !important;
+}
+
+.user-table td:nth-child(4) .small {
+    min-width: 72px;
 }
 
 .small {

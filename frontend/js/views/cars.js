@@ -2,6 +2,10 @@ async function renderCars(view) {
     const [customers, cars, appointments] = await Promise.all([api("/customers"), api("/cars"), api("/appointments")]);
     const sortedCustomers = [...customers].sort((a, b) => String(a.full_name || "").localeCompare(String(b.full_name || ""), "bg", { sensitivity: "base" }));
     const carsWithAppointments = new Set(appointments.filter((appointment) => appointment.status === "scheduled").map((appointment) => String(appointment.car_id)));
+    const customerSelectItems = sortedCustomers.map((customer) => ({
+        value: customer.id,
+        label: `${customer.full_name} - ${customer.phone || "без телефон"}`
+    }));
 
     view.innerHTML = `
         <div class="section">
@@ -9,7 +13,7 @@ async function renderCars(view) {
                 <h3 data-car-form-title>Нов автомобил</h3>
                 <form class="form" data-car-form data-draft-key="cars:new:v2">
                     <div class="form-row">
-                        <label>Клиент<select name="customer_id" required>${options(sortedCustomers, "id", (customer) => `${customer.full_name} - ${customer.phone || "без телефон"}`)}</select></label>
+                        <label>Клиент${searchableSelect("customer_id", customerSelectItems, { placeholder: "Избери клиент", searchPlaceholder: "Търси клиент по име или телефон" })}</label>
                         <label>Марка<input name="brand" required minlength="2" pattern="[A-Za-zА-Яа-яЁёЀ-ӿ0-9][A-Za-zА-Яа-яЁёЀ-ӿ0-9\\s.'/-]*" title="Букви, цифри, интервал, точка, тире или /"></label>
                     </div>
                     <div class="form-row">
@@ -146,7 +150,7 @@ async function editCar(carId) {
         clearFormDraft(form);
         form.dataset.draftPaused = "true";
         form.dataset.editId = carId;
-        form.elements.customer_id.value = car.customer_id || "";
+        setSearchableSelectValue(form.elements.customer_id, car.customer_id || "");
         form.elements.brand.value = car.brand || "";
         form.elements.model.value = car.model || "";
         form.elements.year.value = car.year || "";

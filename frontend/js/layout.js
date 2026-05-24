@@ -31,7 +31,9 @@ function isAdmin() {
     return state.user?.role === "admin";
 }
 
-function renderAuth() {
+function renderAuth(mode = "login", presetUsername = "") {
+    const isPasswordReset = mode === "password-reset";
+
     app.innerHTML = `
         <section class="auth-shell">
             <div class="auth-card">
@@ -40,22 +42,45 @@ function renderAuth() {
                     <p>Управление на клиенти, автомобили, ремонти и фактури</p>
                 </div>
                 <p data-notice hidden></p>
-                <form class="form" data-auth-form="login">
-                    <label>
-                        Потребителско име
-                        <input name="username" required autocomplete="username">
-                    </label>
-                    <label>
-                        Парола
-                        <input name="password" type="password" required autocomplete="current-password">
-                    </label>
-                    <button class="primary" type="submit">Вход</button>
-                </form>
+                ${isPasswordReset ? `
+                    <form class="form" data-password-reset-form>
+                        <label>
+                            Потребителско име
+                            <input name="username" value="${escapeHtml(presetUsername)}" required autocomplete="username">
+                        </label>
+                        <label>
+                            Нова парола
+                            <input name="password" type="password" required autocomplete="new-password" minlength="4">
+                        </label>
+                        <label>
+                            Повтори паролата
+                            <input name="confirm_password" type="password" required autocomplete="new-password" minlength="4">
+                        </label>
+                        <button class="primary" type="submit">Запази парола</button>
+                        <button class="secondary" data-show-login type="button">Назад към вход</button>
+                    </form>
+                ` : `
+                    <form class="form" data-auth-form="login">
+                        <label>
+                            Потребителско име
+                            <input name="username" required autocomplete="username">
+                        </label>
+                        <label>
+                            Парола
+                            <input name="password" type="password" required autocomplete="current-password">
+                        </label>
+                        <button class="primary" type="submit">Вход</button>
+                        <button class="secondary" data-show-password-reset type="button">Задай/смени парола</button>
+                    </form>
+                `}
             </div>
         </section>
     `;
 
-    document.querySelector("[data-auth-form]").addEventListener("submit", handleAuth);
+    document.querySelector("[data-auth-form]")?.addEventListener("submit", handleAuth);
+    document.querySelector("[data-password-reset-form]")?.addEventListener("submit", handlePasswordReset);
+    document.querySelector("[data-show-password-reset]")?.addEventListener("click", () => renderAuth("password-reset"));
+    document.querySelector("[data-show-login]")?.addEventListener("click", () => renderAuth("login"));
 }
 
 async function handleAuth(event) {
@@ -78,6 +103,40 @@ async function handleAuth(event) {
         sessionStorage.setItem("user", JSON.stringify(result.user));
         sessionStorage.setItem("currentView", state.view);
         render();
+    } catch (error) {
+        const username = String(values.username || "").trim();
+
+        if (error.code === "PASSWORD_SETUP_REQUIRED") {
+            renderAuth("password-reset", username);
+            setNotice("Този потребител още няма парола. Задай парола, за да продължиш.", true);
+            return;
+        }
+
+        setNotice(error.message, true);
+    }
+}
+
+async function handlePasswordReset(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form).entries());
+
+    if (values.password !== values.confirm_password) {
+        setNotice("Паролите не съвпадат.", true);
+        return;
+    }
+
+    try {
+        await api("/password/reset", {
+            method: "POST",
+            body: JSON.stringify({
+                username: values.username,
+                password: values.password
+            })
+        });
+
+        renderAuth("login");
+        setNotice("Паролата е запазена. Влез с новата парола.");
     } catch (error) {
         setNotice(error.message, true);
     }
@@ -161,6 +220,7 @@ async function loadView() {
             await renderUsers(view);
         }
         bindFormDrafts(view);
+        setupSearchableSelects(view);
     } catch (error) {
         view.innerHTML = `<div class="card"><p class="empty">${escapeHtml(error.message)}</p></div>`;
     }

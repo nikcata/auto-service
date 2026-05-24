@@ -21,6 +21,12 @@ db.connect((err) => {
     }
 
     console.log("Connected to MySQL!");
+
+    db.query("ALTER TABLE users MODIFY password VARCHAR(255) NULL", (migrationErr) => {
+        if (migrationErr) {
+            console.error("User password migration error:", migrationErr.message);
+        }
+    });
 });
 
 module.exports = db;
