@@ -528,6 +528,71 @@ table thead th,
     justify-content: center;
 }
 
+.appointment-list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.appointment-list-head h3 {
+    margin: 0;
+}
+
+.appointment-filter {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.appointment-filter-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 132px;
+    height: 36px;
+    white-space: nowrap;
+}
+
+.appointment-filter-caret {
+    font-size: 12px;
+    line-height: 1;
+}
+
+.appointment-filter-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    min-width: 160px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
+}
+
+.appointment-filter-option {
+    display: block;
+    width: 100%;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    padding: 8px 10px;
+    text-align: left;
+    line-height: 1.2;
+}
+
+.appointment-filter-option:hover,
+.appointment-filter-option.active {
+    background: #edf2f7;
+}
+
+.appointment-filter-option.active {
+    font-weight: 700;
+}
+
 
 .customer-table table {
     table-layout: fixed;
@@ -1510,5 +1575,15 @@ table thead th,
     .topbar {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .appointment-list-head {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .appointment-filter,
+    .appointment-filter-button {
+        width: 100%;
     }
 }

@@ -16,8 +16,10 @@ function publicUser(user) {
     };
 }
 
+const PASSWORD_PATTERN = /^(?=.*[A-Za-zА-Яа-я])(?=.*\d).{4,8}$/;
+
 function validatePassword(password) {
-    return typeof password === "string" && password.length >= 4;
+    return typeof password === "string" && PASSWORD_PATTERN.test(password);
 }
 
 function createUser(req, res) {
@@ -132,7 +134,7 @@ router.post("/password/reset", async (req, res) => {
     }
 
     if (!validatePassword(password)) {
-        return res.status(400).json({ error: "Password must be at least 4 characters" });
+        return res.status(400).json({ error: "Паролата трябва да е 4-8 символа и да съдържа поне една буква и една цифра" });
     }
 
     try {

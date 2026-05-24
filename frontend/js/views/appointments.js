@@ -1,5 +1,14 @@
+const APPOINTMENT_STATUS_FILTERS = [
+    { value: "all", label: "Всички" },
+    { value: "scheduled", label: "Записани" },
+    { value: "completed", label: "Завършени" },
+    { value: "cancelled", label: "Отказани" }
+];
+
 async function renderAppointments(view) {
     const [customers, cars, appointments] = await Promise.all([api("/customers"), api("/cars"), api("/appointments")]);
+    let appointmentSearchQuery = "";
+    let appointmentStatusFilter = normalizeAppointmentStatusFilter(sessionStorage.getItem("appointmentStatusFilter"));
     const sortedCustomers = [...customers].sort((a, b) => String(a.full_name || "").localeCompare(String(b.full_name || ""), "bg", { sensitivity: "base" }));
     const sortedCars = [...cars].sort((a, b) => {
         const carA = `${a.brand || ""} ${a.model || ""} ${a.registration_number || ""}`;
@@ -32,7 +41,18 @@ async function renderAppointments(view) {
                 </form>
             </div>
             <div class="card">
-                <h3>Записани часове</h3>
+                <div class="appointment-list-head">
+                    <h3>Записани часове</h3>
+                    <div class="appointment-filter" data-appointment-status-filter>
+                        <button class="secondary small appointment-filter-button" data-appointment-filter-button type="button" aria-haspopup="true" aria-expanded="false">
+                            <span data-appointment-filter-label>${escapeHtml(appointmentStatusFilterLabel(appointmentStatusFilter))}</span>
+                            <span class="appointment-filter-caret" aria-hidden="true">▾</span>
+                        </button>
+                        <div class="appointment-filter-menu" data-appointment-filter-menu hidden>
+                            ${appointmentStatusFilterOptions(appointmentStatusFilter)}
+                        </div>
+                    </div>
+                </div>
                 <div class="search-line calendar-search">
                     <input data-appointment-search placeholder="Търси по клиент, автомобил, рег. номер или причина">
                 </div>
@@ -43,31 +63,163 @@ async function renderAppointments(view) {
 
     document.querySelector("[data-appointment-form]").addEventListener("submit", submitAppointment);
 
-    const renderAppointmentList = (items) => {
-        const sortedItems = sortAppointmentsByDateDesc(items);
+    const filteredAppointments = () => {
+        return appointments.filter((appointment) => {
+            const status = appointment.status || "scheduled";
+            if (appointmentStatusFilter !== "all" && status !== appointmentStatusFilter) {
+                return false;
+            }
 
-        document.querySelector("[data-appointments-list]").innerHTML = appointmentTable(sortedItems);
-        bindAppointmentActions(sortedItems);
-    };
+            if (!appointmentSearchQuery) {
+                return true;
+            }
 
-    renderAppointmentList(appointments);
-
-    document.querySelector("[data-appointment-search]").addEventListener("input", (event) => {
-        const query = event.target.value.trim().toLowerCase();
-        const filteredAppointments = appointments.filter((appointment) => {
             const searchableText = [
                 appointment.customer_name,
                 appointment.brand,
                 appointment.model,
                 appointment.registration_number,
                 appointment.reason,
-                appointment.status
+                status,
+                appointmentStatusFilterLabel(status)
             ].join(" ").toLowerCase();
 
-            return searchableText.includes(query);
+            return searchableText.includes(appointmentSearchQuery);
         });
+    };
 
-        renderAppointmentList(filteredAppointments);
+    const handleAppointmentStatusSaved = (appointmentId, status) => {
+        const appointment = appointments.find((item) => String(item.id) === String(appointmentId));
+        if (appointment) {
+            appointment.status = status;
+        }
+
+        if (appointmentStatusFilter !== "all" || appointmentSearchQuery) {
+            setTimeout(() => renderAppointmentList(filteredAppointments()), 350);
+        }
+    };
+
+    const renderAppointmentList = (items) => {
+        const sortedItems = sortAppointmentsByDateDesc(items);
+
+        document.querySelector("[data-appointments-list]").innerHTML = appointmentTable(sortedItems);
+        bindAppointmentActions(sortedItems, handleAppointmentStatusSaved);
+    };
+
+    renderAppointmentList(filteredAppointments());
+
+    bindAppointmentStatusFilter({
+        getValue: () => appointmentStatusFilter,
+        setValue: (value) => {
+            appointmentStatusFilter = normalizeAppointmentStatusFilter(value);
+            sessionStorage.setItem("appointmentStatusFilter", appointmentStatusFilter);
+            renderAppointmentList(filteredAppointments());
+        }
+    });
+
+    document.querySelector("[data-appointment-search]").addEventListener("input", (event) => {
+        appointmentSearchQuery = event.target.value.trim().toLowerCase();
+        renderAppointmentList(filteredAppointments());
+    });
+}
+
+function normalizeAppointmentStatusFilter(value) {
+    return APPOINTMENT_STATUS_FILTERS.some((filter) => filter.value === value) ? value : "all";
+}
+
+function appointmentStatusFilterLabel(value) {
+    const filter = APPOINTMENT_STATUS_FILTERS.find((item) => item.value === value);
+
+    return filter ? filter.label : APPOINTMENT_STATUS_FILTERS[0].label;
+}
+
+function appointmentStatusFilterOptions(activeValue) {
+    return APPOINTMENT_STATUS_FILTERS.map((filter) => {
+        const isActive = filter.value === activeValue;
+
+        return `
+            <button class="appointment-filter-option ${isActive ? "active" : ""}" data-appointment-filter-option="${escapeHtml(filter.value)}" type="button" aria-pressed="${isActive ? "true" : "false"}">
+                ${escapeHtml(filter.label)}
+            </button>
+        `;
+    }).join("");
+}
+
+function bindAppointmentStatusFilter({ getValue, setValue }) {
+    const filter = document.querySelector("[data-appointment-status-filter]");
+    const button = document.querySelector("[data-appointment-filter-button]");
+    const menu = document.querySelector("[data-appointment-filter-menu]");
+    const label = document.querySelector("[data-appointment-filter-label]");
+    if (!filter || !button || !menu || !label) return;
+
+    let outsideClickHandler = null;
+    let escapeKeyHandler = null;
+
+    const syncOptions = () => {
+        label.textContent = appointmentStatusFilterLabel(getValue());
+        menu.querySelectorAll("[data-appointment-filter-option]").forEach((option) => {
+            const isActive = option.dataset.appointmentFilterOption === getValue();
+            option.classList.toggle("active", isActive);
+            option.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+    };
+
+    const closeMenu = () => {
+        menu.hidden = true;
+        button.setAttribute("aria-expanded", "false");
+
+        if (outsideClickHandler) {
+            document.removeEventListener("click", outsideClickHandler);
+            outsideClickHandler = null;
+        }
+
+        if (escapeKeyHandler) {
+            document.removeEventListener("keydown", escapeKeyHandler);
+            escapeKeyHandler = null;
+        }
+    };
+
+    const openMenu = () => {
+        menu.hidden = false;
+        button.setAttribute("aria-expanded", "true");
+
+        outsideClickHandler = (event) => {
+            if (!filter.contains(event.target)) {
+                closeMenu();
+            }
+        };
+
+        escapeKeyHandler = (event) => {
+            if (event.key === "Escape") {
+                closeMenu();
+            }
+        };
+
+        document.addEventListener("click", outsideClickHandler);
+        document.addEventListener("keydown", escapeKeyHandler);
+    };
+
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+
+        if (menu.hidden) {
+            openMenu();
+            return;
+        }
+
+        closeMenu();
+    });
+
+    menu.addEventListener("click", (event) => {
+        event.stopPropagation();
+    });
+
+    menu.querySelectorAll("[data-appointment-filter-option]").forEach((option) => {
+        option.addEventListener("click", () => {
+            setValue(option.dataset.appointmentFilterOption);
+            syncOptions();
+            closeMenu();
+        });
     });
 }
 
@@ -133,7 +285,7 @@ function appointmentCustomerName(name) {
         '</span>';
 }
 
-function bindAppointmentActions(appointments = []) {
+function bindAppointmentActions(appointments = [], onStatusSaved = () => {}) {
     document.querySelectorAll("[data-appointment-reason]").forEach((button) => {
         button.addEventListener("click", () => {
             const appointment = appointments.find((item) => String(item.id) === String(button.dataset.appointmentReason));
@@ -142,7 +294,7 @@ function bindAppointmentActions(appointments = []) {
     });
 
     document.querySelectorAll("[data-save-appointment-status]").forEach((button) => {
-        button.addEventListener("click", () => updateAppointmentStatus(button.dataset.saveAppointmentStatus, button));
+        button.addEventListener("click", () => updateAppointmentStatus(button.dataset.saveAppointmentStatus, button, onStatusSaved));
     });
 
     document.querySelectorAll("[data-delete-appointment]").forEach((button) => {
@@ -182,10 +334,11 @@ function showAppointmentReasonModal(appointment) {
     });
 }
 
-async function updateAppointmentStatus(appointmentId, button) {
+async function updateAppointmentStatus(appointmentId, button, onStatusSaved = () => {}) {
     const select = document.querySelector(`[data-appointment-status="${appointmentId}"]`);
     if (!select) return;
 
+    const status = select.value;
     const originalText = button.textContent;
     button.disabled = true;
     button.textContent = "Запазване...";
@@ -194,12 +347,13 @@ async function updateAppointmentStatus(appointmentId, button) {
     try {
         await api(`/appointments/${appointmentId}/status`, {
             method: "PATCH",
-            body: JSON.stringify({ status: select.value })
+            body: JSON.stringify({ status })
         });
 
         button.textContent = "Запазено";
         button.classList.add("saved");
         setNotice("Статусът е обновен.");
+        onStatusSaved(appointmentId, status);
 
         setTimeout(() => {
             button.disabled = false;

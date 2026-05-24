@@ -1,3 +1,5 @@
+const PASSWORD_PATTERN = /^(?=.*[A-Za-zА-Яа-я])(?=.*\d).{4,8}$/;
+
 function logout(options = {}) {
     if (options.confirm && !confirm("Сигурен ли си, че искаш да излезеш?")) {
         return;
@@ -50,11 +52,11 @@ function renderAuth(mode = "login", presetUsername = "") {
                         </label>
                         <label>
                             Нова парола
-                            <input name="password" type="password" required autocomplete="new-password" minlength="4">
+                            <input name="password" type="password" required autocomplete="new-password" minlength="4" maxlength="8" pattern="(?=.*[A-Za-zА-Яа-я])(?=.*\\d).{4,8}" title="Паролата трябва да е 4-8 символа и да съдържа поне една буква и една цифра">
                         </label>
                         <label>
                             Повтори паролата
-                            <input name="confirm_password" type="password" required autocomplete="new-password" minlength="4">
+                            <input name="confirm_password" type="password" required autocomplete="new-password" minlength="4" maxlength="8" pattern="(?=.*[A-Za-zА-Яа-я])(?=.*\\d).{4,8}" title="Паролата трябва да е 4-8 символа и да съдържа поне една буква и една цифра">
                         </label>
                         <button class="primary" type="submit">Запази парола</button>
                         <button class="secondary" data-show-login type="button">Назад към вход</button>
@@ -123,6 +125,11 @@ async function handlePasswordReset(event) {
 
     if (values.password !== values.confirm_password) {
         setNotice("Паролите не съвпадат.", true);
+        return;
+    }
+
+    if (!PASSWORD_PATTERN.test(values.password || "")) {
+        setNotice("Паролата трябва да е 4-8 символа и да съдържа поне една буква и една цифра.", true);
         return;
     }
 
