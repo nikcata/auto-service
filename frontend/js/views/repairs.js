@@ -8,7 +8,7 @@ async function renderRepairs(view) {
     const openRepairs = repairs.filter((repair) => {
         return repair.status !== "completed" && !cancelledAppointmentIds.has(String(repair.appointment_id));
     });
-    const completedRepairs = repairs.filter((repair) => repair.status === "completed");
+    const completedRepairs = sortCompletedRepairs(repairs.filter((repair) => repair.status === "completed"));
     const repairAppointmentIds = new Set(repairs.map((repair) => String(repair.appointment_id)).filter(Boolean));
     const selectedRepairExists = openRepairs.some((repair) => String(repair.id) === String(state.selectedRepairId));
     const selectedRepairId = selectedRepairExists ? state.selectedRepairId : "";
@@ -112,7 +112,7 @@ function bindCompletedRepairSearch(repairs) {
 
     input.addEventListener("input", () => {
         const query = input.value.trim().toLowerCase();
-        const filteredRepairs = repairs.filter((repair) => {
+        const filteredRepairs = sortCompletedRepairs(repairs.filter((repair) => {
             const searchableText = [
                 repair.customer_name,
                 repair.brand,
@@ -121,7 +121,7 @@ function bindCompletedRepairSearch(repairs) {
             ].join(" ").toLowerCase();
 
             return searchableText.includes(query);
-        });
+        }));
 
         list.innerHTML = completedRepairTable(filteredRepairs);
         bindCompletedRepairActions();
@@ -147,6 +147,22 @@ function repairLaborForm(repair) {
     `;
 }
 
+function completedRepairSortDate(repair) {
+    const value = repair.completed_at || repair.repair_date || repair.created_at;
+    const timestamp = new Date(value).getTime();
+
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function sortCompletedRepairs(repairs) {
+    return [...repairs].sort((a, b) => {
+        const dateDiff = completedRepairSortDate(b) - completedRepairSortDate(a);
+        if (dateDiff !== 0) return dateDiff;
+
+        return Number(b.id || 0) - Number(a.id || 0);
+    });
+}
+
 function invoiceAction(repair) {
     if (repair.invoice_id && repair.invoice_status !== "cancelled") {
         return '<span class="muted action-note">Фактура издадена</span>';
@@ -160,7 +176,7 @@ function completedRepairTable(repairs) {
         r.id,
         isAdmin() ? twoLineName(r.customer_name, 12, 12) : twoLineName(r.customer_name, 18, 18),
         isAdmin() ? shortText(`${r.brand} ${r.model}`, 20) : shortText(`${r.brand} ${r.model}`, 34),
-        formatDate(r.repair_date),
+        formatDate(r.completed_at || r.repair_date),
         shortText(r.mechanic_name || "-", 18),
         money(r.total_price),
         `<div class="actions">
@@ -207,7 +223,7 @@ async function refreshCompletedRepairList() {
     if (!list) return;
 
     const repairs = await api("/repairs");
-    const completedRepairs = repairs.filter((repair) => repair.status === "completed");
+    const completedRepairs = sortCompletedRepairs(repairs.filter((repair) => repair.status === "completed"));
     list.innerHTML = completedRepairTable(completedRepairs);
     bindCompletedRepairSearch(completedRepairs);
     bindCompletedRepairActions();

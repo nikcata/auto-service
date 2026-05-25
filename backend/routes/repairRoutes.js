@@ -78,7 +78,12 @@ router.get("/repairs", verifyToken, (req, res) => {
         JOIN customers ON cars.customer_id = customers.id
         LEFT JOIN invoices ON invoices.repair_id = repairs.id AND invoices.status <> 'cancelled'
         WHERE repairs.archived_at IS NULL
-        ORDER BY repairs.repair_date DESC, repairs.created_at DESC
+        ORDER BY
+            CASE
+                WHEN repairs.status = 'completed' THEN COALESCE(repairs.completed_at, CAST(repairs.repair_date AS DATETIME), repairs.created_at)
+                ELSE COALESCE(CAST(repairs.repair_date AS DATETIME), repairs.created_at)
+            END DESC,
+            repairs.id DESC
     `;
 
     db.query(sql, (err, results) => {
@@ -254,7 +259,14 @@ router.patch("/repairs/:id/status", verifyToken, (req, res) => {
         return res.status(400).json({ error: "Invalid repair status" });
     }
 
-    db.query("UPDATE repairs SET status = ? WHERE id = ?", [status, req.params.id], (err, result) => {
+    const sql = `
+        UPDATE repairs
+        SET status = ?,
+            completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END
+        WHERE id = ?
+    `;
+
+    db.query(sql, [status, status, req.params.id], (err, result) => {
         if (err) return res.status(500).json({ error: "Database error" });
         if (result.affectedRows === 0) return res.status(404).json({ error: "Repair not found" });
 

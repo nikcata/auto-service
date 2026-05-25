@@ -1232,6 +1232,7 @@ table thead th,
 .repair-table th:nth-child(4),
 .repair-table td:nth-child(4) {
     width: 11%;
+    text-align: center !important;
     white-space: nowrap;
 }
 

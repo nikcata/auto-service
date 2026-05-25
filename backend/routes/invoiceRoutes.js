@@ -322,13 +322,9 @@ router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
             });
         }
 
-        doc.fillColor("black")
-            .font(regularFont)
-            .fontSize(10)
-            .text(`${labels.invoiceNo}: ${invoiceNumber}`, 400, 120)
-            .text(`${labels.date}: ${new Date().toLocaleDateString("bg-BG")}`, 400, 140);
+        doc.fillColor("black");
 
-        doc.roundedRect(50, 115, 250, 100, 8).stroke();
+        doc.roundedRect(50, 115, 500, 90, 8).stroke();
 
         doc.font(boldFont)
             .fontSize(12)
@@ -339,31 +335,39 @@ router.get("/invoice/:repairId", verifyToken, requireAdmin, (req, res) => {
             .text(`${labels.name}: ${data.full_name}`, 65, 155)
             .text(`${labels.phone}: ${data.phone || "-"}`, 65, 175);
 
-        doc.roundedRect(50, 240, 500, 120, 8).stroke();
+        const invoiceLabel = `${labels.invoiceNo}:`;
+        const invoiceLabelX = 320;
+        const invoiceLabelY = 155;
+
+        doc.text(invoiceLabel, invoiceLabelX, invoiceLabelY, { lineBreak: false });
+        doc.text(invoiceNumber, invoiceLabelX + doc.widthOfString(invoiceLabel) + 3, invoiceLabelY, { lineBreak: false });
+        doc.text(`${labels.date}: ${new Date().toLocaleDateString("bg-BG")}`, invoiceLabelX, 175);
+
+        doc.roundedRect(50, 225, 500, 110, 8).stroke();
 
         doc.font(boldFont)
             .fontSize(12)
-            .text(labels.vehicleInfo, 65, 255);
+            .text(labels.vehicleInfo, 65, 240);
 
         doc.font(regularFont)
             .fontSize(10)
-            .text(`${labels.car}: ${data.brand} ${data.model}`, 65, 280)
-            .text(`${labels.registration}: ${data.registration_number || "-"}`, 65, 300)
-            .text("VIN: " + (data.vin || "-"), 300, 300)
-            .text("Година: " + (data.year || "-"), 65, 320)
-            .text("Двигател: " + (data.engine || "-"), 300, 320)
-            .text("Километри: " + (data.mileage || "-"), 65, 340);
+            .text(`${labels.car}: ${data.brand} ${data.model}`, 65, 265)
+            .text("Километри: " + (data.mileage || "-"), 300, 265)
+            .text(`${labels.registration}: ${data.registration_number || "-"}`, 65, 285)
+            .text("VIN: " + (data.vin || "-"), 300, 285)
+            .text("Година: " + (data.year || "-"), 65, 305)
+            .text("Двигател: " + (data.engine || "-"), 300, 305);
 
         doc.font(boldFont)
             .fontSize(12)
-            .text(labels.repairDescription, 50, 390);
+            .text(labels.repairDescription, 50, 350);
 
         doc.font(regularFont)
             .fontSize(10)
-            .text(labels.mechanic + ": " + (data.mechanic_name || "-"), 50, 415)
-            .text(data.description || "-", 50, 435, { width: 500 });
+            .text(labels.mechanic + ": " + (data.mechanic_name || "-"), 50, 375)
+            .text(data.description || "-", 50, 395, { width: 500 });
 
-        let y = 475;
+        let y = 435;
 
         doc.rect(50, y, 500, 25).fill("#e5e7eb");
 

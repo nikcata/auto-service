@@ -44,6 +44,7 @@ CREATE TABLE repairs (
     labor_price DECIMAL(10,2),
     total_price DECIMAL(10,2),
     status VARCHAR(50),
+    completed_at TIMESTAMP NULL DEFAULT NULL,
     archived_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (car_id) REFERENCES cars(id)

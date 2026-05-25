@@ -27,6 +27,27 @@ db.connect((err) => {
             console.error("User password migration error:", migrationErr.message);
         }
     });
+
+    db.query(`
+        SELECT COUNT(*) AS count
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'repairs'
+          AND COLUMN_NAME = 'completed_at'
+    `, (columnErr, rows) => {
+        if (columnErr) {
+            console.error("Repair completed_at check error:", columnErr.message);
+            return;
+        }
+
+        if (Number(rows[0]?.count || 0) > 0) return;
+
+        db.query("ALTER TABLE repairs ADD COLUMN completed_at TIMESTAMP NULL DEFAULT NULL AFTER status", (migrationErr) => {
+            if (migrationErr) {
+                console.error("Repair completed_at migration error:", migrationErr.message);
+            }
+        });
+    });
 });
 
 module.exports = db;
