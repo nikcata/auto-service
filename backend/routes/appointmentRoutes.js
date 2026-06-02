@@ -32,17 +32,42 @@ function validateAppointmentTimeStep(appointmentDate) {
     return null;
 }
 
+function formatMysqlDateTime(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:00`;
+}
+
+function getAppointmentSlot(appointmentDate) {
+    const start = new Date(String(appointmentDate || "").replace(" ", "T"));
+    start.setSeconds(0, 0);
+
+    const end = new Date(start);
+    end.setMinutes(end.getMinutes() + 30);
+
+    return {
+        start: formatMysqlDateTime(start),
+        end: formatMysqlDateTime(end)
+    };
+}
+
 function ensureAvailableAppointmentSlot(appointmentDate, excludeAppointmentId, callback) {
+    const slot = getAppointmentSlot(appointmentDate);
     const sql = `
         SELECT id, appointment_date
         FROM appointments
         WHERE status = 'scheduled'
-          AND ABS(TIMESTAMPDIFF(MINUTE, appointment_date, ?)) < 30
+          AND appointment_date >= ?
+          AND appointment_date < ?
           AND (? IS NULL OR id <> ?)
         LIMIT 1
     `;
 
-    db.query(sql, [appointmentDate, excludeAppointmentId || null, excludeAppointmentId || null], (err, appointments) => {
+    db.query(sql, [slot.start, slot.end, excludeAppointmentId || null, excludeAppointmentId || null], (err, appointments) => {
         if (err) return callback(err);
 
         if (appointments.length > 0) {
@@ -97,16 +122,17 @@ router.post("/appointments", verifyToken, (req, res) => {
         return res.status(400).json({ error: timeStepError });
     }
 
+    const normalizedAppointmentDate = getAppointmentSlot(appointment_date).start;
     const sql = `
         INSERT INTO appointments (customer_id, car_id, appointment_date, reason, status)
         VALUES (?, ?, ?, ?, ?)
     `;
 
-    ensureAvailableAppointmentSlot(appointment_date, null, (slotErr, slotError) => {
+    ensureAvailableAppointmentSlot(normalizedAppointmentDate, null, (slotErr, slotError) => {
         if (slotErr) return res.status(500).json({ error: "Database error" });
         if (slotError) return res.status(409).json({ error: slotError });
 
-        db.query(sql, [customer_id, car_id, appointment_date, reason, status || "scheduled"], (err, result) => {
+        db.query(sql, [customer_id, car_id, normalizedAppointmentDate, reason, status || "scheduled"], (err, result) => {
             if (err) return res.status(500).json({ error: "Database error" });
 
             res.json({
@@ -141,9 +167,10 @@ router.put("/appointments/:id", verifyToken, (req, res) => {
         SET customer_id = ?, car_id = ?, appointment_date = ?, reason = ?, status = ?
         WHERE id = ?
     `;
+    const normalizedAppointmentDate = getAppointmentSlot(appointment_date).start;
 
     const updateAppointment = () => {
-        db.query(sql, [customer_id, car_id, appointment_date, reason, status || "scheduled", req.params.id], (err, result) => {
+        db.query(sql, [customer_id, car_id, normalizedAppointmentDate, reason, status || "scheduled", req.params.id], (err, result) => {
             if (err) return res.status(500).json({ error: "Database error" });
             if (result.affectedRows === 0) return res.status(404).json({ error: "Appointment not found" });
 
@@ -155,7 +182,7 @@ router.put("/appointments/:id", verifyToken, (req, res) => {
         return updateAppointment();
     }
 
-    ensureAvailableAppointmentSlot(appointment_date, req.params.id, (slotErr, slotError) => {
+    ensureAvailableAppointmentSlot(normalizedAppointmentDate, req.params.id, (slotErr, slotError) => {
         if (slotErr) return res.status(500).json({ error: "Database error" });
         if (slotError) return res.status(409).json({ error: slotError });
 
