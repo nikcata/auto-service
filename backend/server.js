@@ -13,6 +13,7 @@ const invoiceRoutes = require("./routes/invoiceRoutes");
 const appointmentRoutes = require("./routes/appointmentRoutes");
 
 const app = express();
+const reactDistPath = path.join(__dirname, "..", "frontend-react", "dist");
 
 app.use(cors());
 app.use(express.json());
@@ -23,10 +24,10 @@ app.get("/invoices/:fileName", (req, res, next) => {
 
     res.sendFile(path.join(__dirname, "invoices", path.basename(req.params.fileName)));
 });
-app.use(express.static(path.join(__dirname, "..", "frontend")));
+app.use(express.static(reactDistPath));
 
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "..", "frontend", "index.html"));
+    res.sendFile(path.join(reactDistPath, "index.html"));
 });
 
 app.use(authRoutes);

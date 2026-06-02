@@ -616,7 +616,8 @@ table thead th,
 }
 
 .table-scroll thead th,
-.list-scroll thead th {
+.list-scroll thead th,
+.records-scroll thead th {
     position: sticky;
     top: 0;
     z-index: 1;
@@ -791,6 +792,23 @@ table thead th,
 
 .customer-table table {
     table-layout: fixed;
+}
+
+.customer-table,
+.car-table {
+    max-height: 520px;
+    overflow-y: auto;
+    overflow-x: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    border-bottom: 1px solid var(--line);
+}
+
+.customer-table thead th,
+.car-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
 }
 
 .customer-table table th:nth-child(1),

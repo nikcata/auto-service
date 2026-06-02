@@ -542,7 +542,7 @@ function Customers({ isAdmin, setNotice }) {
         <div className="card">
           <h3>Списък</h3>
           <input className="search" placeholder="Търси по име или телефон" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <div className="customer-table">
+          <div className="customer-table records-scroll">
             <DataTable
               headers={["ID", "Име", "Телефон", ...(isAdmin ? ["Действия"] : [])]}
               rows={customers.map((customer) => [
@@ -765,7 +765,7 @@ function Cars({ isAdmin, setNotice, setView }) {
         <div className="search-line car-search">
           <input placeholder="Търси по клиент, марка, модел, рег. номер или VIN" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        <div className={`car-table ${isAdmin ? "admin-car-table" : "mechanic-car-table"}`}>
+        <div className={`car-table records-scroll ${isAdmin ? "admin-car-table" : "mechanic-car-table"}`}>
           <DataTable
             headers={["ID", "Клиент", "Автомобил", "Рег. номер", "VIN", "Действия"]}
             rows={cars.map((car) => [
