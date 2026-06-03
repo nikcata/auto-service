@@ -481,7 +481,7 @@ button {
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    max-height: min(720px, 70vh);
+    max-height: 340px;
     overflow-y: auto;
     border: 1px solid var(--line);
     border-radius: 8px;
