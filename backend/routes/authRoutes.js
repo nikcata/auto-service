@@ -125,7 +125,7 @@ router.get("/users", verifyToken, requireAdmin, (req, res) => {
 
 router.post("/users", verifyToken, requireAdmin, createUser);
 router.post("/register", verifyToken, requireAdmin, createUser);
-router.post("/password/reset", async (req, res) => {
+router.post("/password/setup", async (req, res) => {
     const username = String(req.body.username || "").trim();
     const password = String(req.body.password || "");
 
@@ -140,11 +140,28 @@ router.post("/password/reset", async (req, res) => {
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        db.query("UPDATE users SET password = ? WHERE BINARY username = ?", [hashedPassword, username], (err, result) => {
-            if (err) return res.status(500).json({ error: "Database error" });
-            if (result.affectedRows === 0) return res.status(404).json({ error: "User not found" });
+        const sql = `
+            UPDATE users
+            SET password = ?
+            WHERE BINARY username = ?
+              AND password IS NULL
+        `;
 
-            res.json({ message: "Password updated successfully!" });
+        db.query(sql, [hashedPassword, username], (err, result) => {
+            if (err) return res.status(500).json({ error: "Database error" });
+            if (result.affectedRows > 0) {
+                return res.json({ message: "Password set successfully!" });
+            }
+
+            db.query("SELECT password IS NOT NULL AS has_password FROM users WHERE BINARY username = ?", [username], (selectErr, users) => {
+                if (selectErr) return res.status(500).json({ error: "Database error" });
+                if (users.length === 0) return res.status(404).json({ error: "User not found" });
+
+                res.status(409).json({
+                    code: "PASSWORD_ALREADY_SET",
+                    error: "Този потребител вече има зададена парола"
+                });
+            });
         });
     } catch (error) {
         res.status(500).json({ error: "Error hashing password" });

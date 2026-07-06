@@ -157,12 +157,12 @@ function LoginPage({ onLogin }) {
     }
 
     try {
-      await apiRequest("/password/reset", {
+      await apiRequest("/password/setup", {
         method: "POST",
         body: JSON.stringify({ username: form.username, password: form.password }),
       });
       setMode("login");
-      setError("Паролата е запазена. Влез с новата парола.");
+      setError("Паролата е зададена. Влез с нея.");
       setForm({ ...form, password: "", confirmPassword: "" });
     } catch (passwordError) {
       setError(passwordError.message);
@@ -176,14 +176,14 @@ function LoginPage({ onLogin }) {
           <img className="brand-logo" src="/autoservice.png" alt="nmmotorsport" />
           <p>Управление на клиенти, автомобили, ремонти и фактури</p>
         </div>
-        {error && <p className={error.includes("запазена") ? "notice" : "notice error"}>{error}</p>}
+        {error && <p className={error === "Паролата е зададена. Влез с нея." ? "notice" : "notice error"}>{error}</p>}
         <form className="form" onSubmit={mode === "login" ? submitLogin : submitPassword}>
           <label>
             Потребителско име
             <input name="username" value={form.username} onChange={updateField} required autoComplete="username" />
           </label>
           <label>
-            {mode === "login" ? "Парола" : "Нова парола"}
+            Парола
             <input
               name="password"
               type="password"
@@ -217,7 +217,7 @@ function LoginPage({ onLogin }) {
           <button className="primary">{mode === "login" ? "Вход" : "Запази парола"}</button>
           {mode === "login" && (
             <button className="secondary" type="button" onClick={showPasswordSetup}>
-              Задай/смени парола
+              Задай парола
             </button>
           )}
           {mode === "password" && (

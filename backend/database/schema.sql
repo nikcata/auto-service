@@ -83,5 +83,6 @@ CREATE TABLE invoices (
     pdf_path VARCHAR(255),
     status VARCHAR(20) NOT NULL DEFAULT 'issued',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_invoices_repair_id (repair_id),
     FOREIGN KEY (repair_id) REFERENCES repairs(id)
 );
