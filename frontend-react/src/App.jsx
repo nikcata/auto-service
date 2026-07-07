@@ -621,13 +621,18 @@ function Cars({ isAdmin, setNotice, setView }) {
       return;
     }
 
-    await apiRequest(editId ? `/cars/${editId}` : "/cars", {
-      method: editId ? "PUT" : "POST",
-      body: JSON.stringify(form),
-    });
-    resetForm();
-    setNotice(editId ? "Автомобилът е обновен." : "Автомобилът е добавен.");
-    reload();
+    try {
+      await apiRequest(editId ? `/cars/${editId}` : "/cars", {
+        method: editId ? "PUT" : "POST",
+        body: JSON.stringify(form),
+      });
+      resetForm();
+      setNotice(editId ? "Автомобилът е обновен." : "Автомобилът е добавен.");
+      reload();
+    } catch (saveError) {
+      setNotice("");
+      setFormError(saveError.message);
+    }
   }
 
   function resetForm() {
@@ -729,6 +734,8 @@ function Cars({ isAdmin, setNotice, setView }) {
               <input
                 value={form.registration_number}
                 onChange={(e) => setForm({ ...form, registration_number: e.target.value.toUpperCase() })}
+                pattern="[A-ZА-Я0-9][A-ZА-Я0-9\s-]{1,18}[A-ZА-Я0-9]"
+                title="Рег. номерът трябва да е 3-20 символа и може да съдържа само букви, цифри, интервал и тире. Не може да започва или завършва с интервал или тире."
                 required
               />
             </label>
@@ -2232,6 +2239,7 @@ function validateCarForm(form) {
   const vin = String(form.vin || "").trim().toUpperCase();
   const year = String(form.year || "").trim();
   const mileage = String(form.mileage || "").trim();
+  const registrationPattern = /^[A-ZА-Я0-9][A-ZА-Я0-9\s-]{1,18}[A-ZА-Я0-9]$/u;
   const vinPattern = /^[A-HJ-NPR-Z0-9]{17}$/;
 
   if (!brand) {
@@ -2244,6 +2252,10 @@ function validateCarForm(form) {
 
   if (!registrationNumber) {
     return "Рег. номерът е задължителен";
+  }
+
+  if (!registrationPattern.test(registrationNumber)) {
+    return "Рег. номерът трябва да е 3-20 символа и може да съдържа само букви, цифри, интервал и тире. Не може да започва или завършва с интервал или тире.";
   }
 
   if (vin && !vinPattern.test(vin)) {
